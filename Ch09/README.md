@@ -19,14 +19,14 @@ This directory contains all code listings and exercises from Chapter 9, organize
 
 | File | Listing | Section | Purpose |
 |------|---------|---------|---------|
-| `crossplane-providers.yaml` | Listing 9.1 | "Infrastructure Blueprints" | Provider configuration for AWS and Kubernetes providers. Includes AWS provider setup with resource limits and Kubernetes provider for local development testing. |
+| `crossplane-providers.yaml` | Listing 9.1 | "Infrastructure Blueprints" | Provider configuration for Kubernetes and Helm providers. Runs entirely on the local Kind cluster — no cloud credentials required. |
 
 ### Composite Resource Definitions (XRDs) & Infrastructure Blueprints
 
 | File | Listing | Section | Purpose |
 |------|---------|---------|---------|
 | `xrd-postgresql.yaml` | Listing 9.2 | "Designing Composite Resources" | PostgreSQL XRD that defines the schema developers interact with when requesting databases. Specifies parameters (storageGB, version, tier, enableBackups) with defaults and validation rules. |
-| `composition-postgresql.yaml` | Listing 9.3 | "Designing Composite Resources" | Crossplane composition that implements the PostgreSQL XRD interface. Maps high-level claims to fully configured AWS RDS resources with tier-specific settings and patch sets. |
+| `composition-postgresql.yaml` | Listing 9.3 | "Designing Composite Resources" | Crossplane v2 pipeline-mode composition that implements the PostgreSQL XRD interface using `function-patch-and-transform`. Deploys PostgreSQL as a Deployment inside the Kind cluster using the Kubernetes provider, with tier-specific resource settings and patch sets. |
 | `xrd-gpu-nodepool.yaml` | Listing 9.6 | "Enabling Innovation Beyond the Platform" | XRD for GPU node pools enabling ML teams to request GPU resources with governance controls. Defines GPU types, node count, spot instance options, and scheduling windows. |
 
 ### Governance & Enforcement
@@ -70,7 +70,7 @@ This directory contains all code listings and exercises from Chapter 9, organize
 
 | File | Listing | Section | Purpose |
 |------|---------|---------|---------|
-| `load-secrets.sh` | N/A | Secrets Management (cross-chapter) | Retrieves AWS credentials from Bitwarden vault and optionally creates the `aws-credentials` Kubernetes Secret for Crossplane. Exports `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION`. Run with `--create-k8s` to also create the Kubernetes secret. |
+| `load-secrets.sh` | N/A | Secrets Management (cross-chapter) | Retrieves database credentials from Bitwarden vault and optionally creates the `db-credentials` Kubernetes Secret for Crossplane. Exports `POSTGRES_PASSWORD`. Run with `--create-k8s` to also create the Kubernetes secret. |
 
 ## Prerequisites
 
@@ -90,7 +90,7 @@ This directory contains all code listings and exercises from Chapter 9, organize
 
 Install the following packages before running Python scripts:
 ```bash
-pip install flask pyyaml kubernetes
+pip install --break-system-packages flask pyyaml kubernetes
 ```
 
 The following versions are recommended:
@@ -98,19 +98,19 @@ The following versions are recommended:
 - pyyaml: 5.4+
 - kubernetes: 20.0+
 
-### Cloud Provider Setup (Optional)
+### Database Credentials
 
-For AWS integration (required for production use of compositions):
-- AWS account with appropriate IAM credentials
-- AWS provider configuration with credentials stored in a Kubernetes secret
-- **Recommended:** Store AWS credentials in Bitwarden and use `load-secrets.sh`:
+For Crossplane-managed PostgreSQL deployments:
+- **Recommended:** Store database credentials in Bitwarden and use `load-secrets.sh`:
   ```bash
-  # Load AWS credentials from vault and create the Kubernetes secret
-  ./load-secrets.sh --create-k8s
+  export BW_SESSION=$(bw unlock --raw)
+  source load-secrets.sh
   ```
-
-For local development/testing:
-- Kubernetes provider (included in crossplane-providers.yaml) - no external credentials needed
+- **Or manually:**
+  ```bash
+  export POSTGRES_PASSWORD=platformdev123
+  ```
+- All providers (Kubernetes, Helm) run locally on Kind — no cloud credentials needed
 
 ### Cluster Permissions
 
@@ -189,26 +189,42 @@ providers.pkg.crossplane.io
 
 ### Phase 2: Provider Configuration
 
-#### Step 2.1: Apply Provider Configuration
+The providers file installs the Kubernetes provider, Helm provider, and `function-patch-and-transform` (required for the v2 Composition pipeline mode). Because the ProviderConfig CRDs are registered *by* the providers, you need to apply the file twice: once to create the Provider/Function objects, then again after they're healthy to create the ProviderConfigs.
+
+#### Step 2.1: Apply Provider Configuration (first pass)
+```bash
+kubectl apply -f crossplane-providers.yaml
+```
+
+The ProviderConfig resources will fail on this first apply — that's expected because the CRDs haven't been registered yet. Wait for the providers and function to become healthy:
+
+```bash
+kubectl wait provider.pkg.crossplane.io/provider-kubernetes --for=condition=Healthy --timeout=120s
+kubectl wait provider.pkg.crossplane.io/provider-helm --for=condition=Healthy --timeout=120s
+kubectl wait function.pkg.crossplane.io/function-patch-and-transform --for=condition=Healthy --timeout=120s
+```
+
+#### Step 2.2: Re-apply to create ProviderConfigs
 ```bash
 kubectl apply -f crossplane-providers.yaml
 ```
 
 **Expected Output:**
 ```
-provider.pkg.crossplane.io/provider-aws created
-controllerconfig.pkg.crossplane.io/aws-config created
-providerconfig.aws.upbound.io/default created
-provider.pkg.crossplane.io/provider-kubernetes created
+provider.pkg.crossplane.io/provider-kubernetes unchanged
 providerconfig.kubernetes.crossplane.io/default created
+function.pkg.crossplane.io/function-patch-and-transform unchanged
+provider.pkg.crossplane.io/provider-helm unchanged
+providerconfig.helm.crossplane.io/default created
 ```
 
-#### Step 2.2: Verify Providers are Installed
+#### Step 2.3: Verify Providers are Installed
 ```bash
-# Check providers
-kubectl get providers -n crossplane-system
+# Check providers and function
+kubectl get providers
+kubectl get functions
 
-# Check provider controller pods (may take 30-60 seconds to start)
+# Check provider controller pods
 kubectl get pods -n crossplane-system | grep provider
 ```
 
@@ -216,8 +232,26 @@ kubectl get pods -n crossplane-system | grep provider
 Providers should show `INSTALLED=true` and `HEALTHY=true`:
 ```
 NAME                      INSTALLED   HEALTHY
-provider-aws              true        true
 provider-kubernetes       true        true
+provider-helm             true        true
+```
+
+#### Step 2.4: Grant RBAC to the Kubernetes Provider
+
+The Kubernetes provider needs cluster-admin permissions to create resources (Namespaces, Deployments, PVCs, Services) on behalf of Crossplane. Without this, all Object resources will fail with "forbidden" errors.
+
+```bash
+SA=$(kubectl -n crossplane-system get sa -o name \
+  | grep provider-kubernetes | head -1)
+
+kubectl create clusterrolebinding provider-kubernetes-admin \
+  --clusterrole cluster-admin \
+  --serviceaccount=crossplane-system:${SA##*/}
+```
+
+**Expected Output:**
+```
+clusterrolebinding.rbac.authorization.k8s.io/provider-kubernetes-admin created
 ```
 
 **Next Step:** Proceed to Phase 3: Infrastructure Blueprints
@@ -237,13 +271,16 @@ compositeresourcedefinition.apiextensions.crossplane.io/postgresqlinstances.data
 ```
 
 #### Step 3.2: Apply PostgreSQL Composition
+
+The composition uses the v2 pipeline mode with `function-patch-and-transform` (installed in Phase 2). It maps the XRD parameters to four Kubernetes resources: a Namespace, PersistentVolumeClaim, Deployment, and Service.
+
 ```bash
 kubectl apply -f composition-postgresql.yaml
 ```
 
 **Expected Output:**
 ```
-composition.apiextensions.crossplane.io/postgresql-aws created
+composition.apiextensions.crossplane.io/postgresql-kubernetes created
 ```
 
 #### Step 3.3: Verify XRD and Composition
@@ -261,41 +298,26 @@ NAME                                        ESTABLISHED   OFFERED   AGE
 postgresqlinstances.database.platform.io    true          true      10s
 
 NAME                    AGE
-postgresql-aws          5s
+postgresql-kubernetes    5s
 ```
 
-#### Step 3.4: Verify the Custom Resource API is available
-```bash
-# List available custom resources
-kubectl api-resources | grep database.platform.io
+#### Step 3.4: Create the Database Credentials Secret
 
-# Try creating a test claim (optional verification)
-cat <<EOF | kubectl apply -f -
-apiVersion: database.platform.io/v1alpha1
-kind: PostgreSQLClaim
-metadata:
-  name: test-claim
-  namespace: default
-spec:
-  parameters:
-    tier: development
-    storageGB: 20
-    version: "15"
-    enableBackups: false
-EOF
+The PostgreSQL Deployment references a Kubernetes Secret called `db-credentials` for the `POSTGRES_PASSWORD`. Create the `databases` namespace and the secret before submitting any claims.
+
+```bash
+kubectl create namespace databases
+
+# Use the password from Bitwarden (or the manual export above)
+kubectl create secret generic db-credentials \
+  --namespace databases \
+  --from-literal=password=${POSTGRES_PASSWORD:-platformdev123}
 ```
 
 **Expected Output:**
 ```
-postgresqlclaim                 database.platform.io         true       PostgreSQLClaim
-postgresqlclaims                database.platform.io         true       PostgreSQLClaim
-
-postgresqlclaim.database.platform.io/test-claim created
-```
-
-Check the claim status:
-```bash
-kubectl get postgresqlclaim test-claim -o yaml
+namespace/databases created
+secret/db-credentials created
 ```
 
 **Next Step:** Proceed to Phase 4: Environment-Specific Configuration
@@ -315,7 +337,7 @@ cat generate-env-defaults.py
 
 #### Step 4.2: Generate Environment-Specific Compositions
 ```bash
-python generate-env-defaults.py
+python3 generate-env-defaults.py
 ```
 
 **Expected Output:**
@@ -355,13 +377,13 @@ composition.apiextensions.crossplane.io/postgresql-production created
 
 #### Step 4.5: Verify All Compositions
 ```bash
-kubectl get compositions -l provider=aws
+kubectl get compositions -l provider=kubernetes
 ```
 
 **Expected Output:**
 ```
 NAME                          AGE
-postgresql-aws                2m
+postgresql-kubernetes         2m
 postgresql-development        30s
 postgresql-staging            30s
 postgresql-production         30s
@@ -489,7 +511,7 @@ cat test-infrastructure.py
 
 #### Step 7.2: Run Infrastructure Tests
 ```bash
-python test-infrastructure.py
+python3 test-infrastructure.py
 ```
 
 **Expected Output:**
@@ -589,19 +611,23 @@ kubectl describe providers -n crossplane-system
 **Diagnosis:**
 ```bash
 kubectl describe postgresqlclaim demo-app-db -n team-alpha
+kubectl get objects -A
+kubectl describe object <name> | tail -20
 ```
 
 **Common causes:**
-- AWS credentials not configured (if using AWS provider)
-- VPC/security group selectors don't match any resources
-- Insufficient permissions in AWS
+- **RBAC forbidden errors:** The Kubernetes provider service account needs cluster-admin. See Phase 2, Step 2.4.
+- **`db-credentials` secret missing:** The PostgreSQL Deployment references this secret. Create it in the `databases` namespace — see Phase 3, Step 3.4.
+- **ProviderConfig not found:** You need to apply `crossplane-providers.yaml` twice — the first time creates the Provider objects, the second time (after they're healthy) creates the ProviderConfigs. See Phase 2.
+- **`function-patch-and-transform` not healthy:** The composition requires this function. Check with `kubectl get functions`.
+- Crossplane providers not healthy (check `kubectl get providers`)
 
-**Solution:** For local testing, use the Kubernetes provider without AWS credentials
+**Solution:** Run through the Phase 2 steps carefully, ensuring providers and functions are healthy before proceeding.
 
 ### Issue: Python script import errors
 ```bash
 # Reinstall dependencies
-pip install --upgrade flask pyyaml kubernetes
+pip install --break-system-packages --upgrade flask pyyaml kubernetes
 ```
 
 ## Companion Website Alignment
@@ -609,7 +635,7 @@ pip install --upgrade flask pyyaml kubernetes
 The companion website (https://peh-packt.platformetrics.com/) contains supplementary materials for Chapter 9, which may include:
 
 - Interactive Crossplane composition builder
-- Example AWS infrastructure configurations
+- Example infrastructure configurations for Kind clusters
 - Extended guardrail policy examples
 - Kubernetes manifest templates for webhook deployment
 - Video walkthroughs of the complete workflow
@@ -624,8 +650,8 @@ The companion website (https://peh-packt.platformetrics.com/) contains supplemen
 - Governance is applied transparently through defaults and validation rules
 
 ### Crossplane Architecture
-- **Providers:** Integrations with external systems (AWS, Azure, GCP, Kubernetes)
-- **Managed Resources:** Individual infrastructure components (RDS, S3, etc.)
+- **Providers:** Integrations with external systems (Kubernetes, Helm, and optionally cloud providers)
+- **Managed Resources:** Individual infrastructure components (Deployments, Services, Helm releases, etc.)
 - **Composite Resources:** High-level abstractions that hide complexity from consumers
 
 ### Governance Pattern
@@ -638,7 +664,7 @@ The companion website (https://peh-packt.platformetrics.com/) contains supplemen
 ## Files Reference
 
 ```
-ch9/code/
+Ch09/
 ├── crossplane-providers.yaml           # Provider configuration (Listing 9.1)
 ├── xrd-postgresql.yaml                 # PostgreSQL XRD (Listing 9.2)
 ├── composition-postgresql.yaml         # PostgreSQL composition (Listing 9.3)
@@ -696,7 +722,7 @@ Deploy Crossplane, create infrastructure blueprints, and provision a database fo
 ## Notes for Instructors/Facilitators
 
 - **Lab Duration:** 2-3 hours for complete walkthrough of all 8 phases
-- **Prerequisites Assessment:** Verify cluster access and Python/pip installation before starting
+- **Prerequisites Assessment:** Verify cluster access and Python/installation before starting
 - **Stopping Point:** Phase 3 (Infrastructure Blueprints) provides a good checkpoint for intermediate students
 - **Extension Activity:** Have students modify the GPU NodePool XRD to add resource quotas and affinity rules
 - **Real-World Scenario:** Challenge students to write a composition for Redis cluster (cache) following the PostgreSQL pattern

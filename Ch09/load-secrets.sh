@@ -2,64 +2,76 @@
 # =============================================================================
 # Chapter 9: Load Secrets from Bitwarden
 # =============================================================================
-# Retrieves cloud provider credentials from the Bitwarden vault and creates
-# the Kubernetes Secret that Crossplane providers need for authentication.
+# Retrieves credentials from the Bitwarden vault and creates
+# the Kubernetes Secrets that Crossplane providers need for authentication.
 #
 # Usage:
 #   source load-secrets.sh           # export env vars only
 #   ./load-secrets.sh --create-k8s   # also create the K8s secret
 #
 # Vault items expected (create these in Bitwarden):
-#   "peh-aws"            -> custom field "access_key_id": <your-key>
-#   "peh-aws"            -> custom field "secret_access_key": <your-secret>
-#   "peh-aws"            -> custom field "region": us-east-1
+#   "peh-db"             -> custom field "postgres_password": <your-db-pass>
 #
 # After running, the following environment variables are set:
-#   AWS_ACCESS_KEY_ID        - AWS access key
-#   AWS_SECRET_ACCESS_KEY    - AWS secret key
-#   AWS_DEFAULT_REGION       - AWS region
+#   POSTGRES_PASSWORD        - PostgreSQL admin password for Crossplane-managed DBs
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source the shared Bitwarden helper
-if [ -f "$SCRIPT_DIR/../../Ch1/code/scripts/bw-helper.sh" ]; then
-    source "$SCRIPT_DIR/../../Ch1/code/scripts/bw-helper.sh"
+# Try runtime layout first (peh repo: ChXX/scripts/), then Manuscript layout (ChX/code/scripts/)
+BW_HELPER=""
+for candidate in \
+    "$SCRIPT_DIR/../Ch01/scripts/bw-helper.sh" \
+    "$SCRIPT_DIR/../../Ch1/code/scripts/bw-helper.sh"; do
+    if [ -f "$candidate" ]; then
+        BW_HELPER="$candidate"
+        break
+    fi
+done
+
+if [ -n "$BW_HELPER" ]; then
+    source "$BW_HELPER"
 else
-    echo "Error: bw-helper.sh not found. Copy it from Ch1/code/scripts/"
-    exit 1
+    echo "Error: bw-helper.sh not found."
+    echo "Looked in:"
+    echo "  $SCRIPT_DIR/../Ch01/scripts/bw-helper.sh"
+    echo "  $SCRIPT_DIR/../../Ch1/code/scripts/bw-helper.sh"
+    return 1 2>/dev/null || exit 1
 fi
 
 echo "Loading Chapter 9 secrets from Bitwarden..."
 echo ""
 
-bw_init
+# Skip bw_init if the vault is already unlocked (BW_SESSION set externally)
+if [ -n "${BW_SESSION:-}" ]; then
+    echo "Bitwarden session already active, skipping unlock."
+else
+    bw_init
+fi
 
-# AWS credentials for Crossplane providers
-bw_export "AWS_ACCESS_KEY_ID"     "peh-aws" "access_key_id"
-bw_export "AWS_SECRET_ACCESS_KEY" "peh-aws" "secret_access_key"
-bw_export "AWS_DEFAULT_REGION"    "peh-aws" "region"
+# PostgreSQL password for Crossplane-managed databases
+bw_export "POSTGRES_PASSWORD" "peh-db" "postgres_password"
 
-# Default region if not stored
-if [ -z "${AWS_DEFAULT_REGION:-}" ]; then
-    export AWS_DEFAULT_REGION="us-east-1"
-    echo "  ℹ AWS_DEFAULT_REGION defaulting to us-east-1"
+# Default password if not stored (for local Kind development only)
+if [ -z "${POSTGRES_PASSWORD:-}" ]; then
+    export POSTGRES_PASSWORD="platformdev123"
+    echo "  ℹ POSTGRES_PASSWORD defaulting to local dev password"
 fi
 
 # Optionally create the Kubernetes secret for Crossplane
 if [ "${1:-}" = "--create-k8s" ]; then
     echo ""
-    echo "Creating Kubernetes secret for Crossplane AWS provider..."
+    echo "Creating Kubernetes secret for Crossplane provider..."
 
-    kubectl create secret generic aws-credentials \
+    kubectl create namespace crossplane-system --dry-run=client -o yaml | kubectl apply -f -
+
+    kubectl create secret generic db-credentials \
         --namespace crossplane-system \
-        --from-literal=credentials="[default]
-aws_access_key_id = ${AWS_ACCESS_KEY_ID}
-aws_secret_access_key = ${AWS_SECRET_ACCESS_KEY}
-region = ${AWS_DEFAULT_REGION}" \
+        --from-literal=password="${POSTGRES_PASSWORD}" \
         --dry-run=client -o yaml | kubectl apply -f -
 
-    echo -e "${GREEN}  ✓ aws-credentials secret created in crossplane-system${NC}"
+    echo -e "${GREEN}  ✓ db-credentials secret created in crossplane-system${NC}"
 fi
 
 echo ""

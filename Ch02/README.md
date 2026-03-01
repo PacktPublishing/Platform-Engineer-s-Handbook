@@ -227,38 +227,31 @@ Istio service mesh configuration resources.
 - Define authorization policies
 - Configure observability with metrics and tracing
 
-### 2.6 (Alternative): Pulumi EKS Cluster
+### 2.6: Pulumi Kind Cluster
 
 **Primary File:** `pulumi-cluster/__main__.py`
 
-Production AWS EKS cluster deployment (alternative to Kind for cloud environments).
+Kind cluster deployment using Pulumi for infrastructure-as-code patterns.
 
 **Resources Created:**
-- VPC with public/private subnets across availability zones
-- Internet gateway and route tables
-- EKS cluster with managed control plane
-- IAM roles for cluster and worker nodes
-- Managed node groups with auto-scaling (t3.medium, 1-10 nodes)
-- EKS add-ons: CoreDNS, kube-proxy
-- CloudWatch logging for cluster operations
+- Kind cluster with configurable worker nodes
+- Docker network for cluster communication
+- Port mappings for ingress (80, 443) and NodePorts (30000-30100)
+- Kubeconfig export for kubectl access
 
 **Configuration (via Pulumi.yaml):**
 ```yaml
-cluster:name: platform-cluster
+cluster:name: platform-dev
 cluster:kubernetesVersion: "1.28"
-cluster:numWorkerNodes: 3
+cluster:numWorkerNodes: 2
 cluster:environment: dev
-aws:region: us-east-1
 ```
 
 **Learning Objectives:**
-- Provision production-grade EKS clusters with Pulumi
-- Configure AWS networking for Kubernetes
-- Manage cluster add-ons
-- Set up logging and monitoring
-- Enable managed node groups with auto-scaling
-
-**Note:** This file provides an AWS EKS alternative but the chapter primarily focuses on Kind clusters for learning. Both approaches use identical Pulumi patterns.
+- Provision Kind clusters with Pulumi
+- Configure cluster networking and port mappings
+- Manage cluster lifecycle with IaC
+- Export kubeconfig for kubectl access
 
 ### Supplementary Files
 
@@ -341,12 +334,12 @@ Pulumi project configuration file.
 
 ### pulumi-cluster/ Directory
 
-Complete production-ready Pulumi project for AWS EKS deployment.
+Pulumi project for Kind cluster deployment.
 
 **Files:**
-- `__main__.py`: Complete EKS cluster with VPC, subnets, node groups, add-ons
+- `__main__.py`: Kind cluster with configurable workers, networking, port mappings
 - `Pulumi.yaml`: Project configuration and stacks
-- `requirements.txt`: Python dependencies (pulumi, pulumi-aws, pulumi-eks, pulumi-kubernetes, pyyaml)
+- `requirements.txt`: Python dependencies (pulumi, pulumi-kubernetes, pyyaml)
 
 ### test/ Directory
 
@@ -401,8 +394,8 @@ The following files are complementary but not directly tied to chapter sections:
 1. **argocd-platform-app.yaml** - Alternative GitOps tool (Chapter 2 focuses on Flux, not ArgoCD)
    - Recommendation: Keep for reference; note in README that Flux is primary pattern
 
-2. **pulumi-cluster/__main__.py** - AWS EKS alternative (Chapter focuses on Kind)
-   - Recommendation: Keep as reference for production AWS deployments; document clearly as optional
+2. **pulumi-cluster/__main__.py** - Kind cluster via Pulumi (IaC approach)
+   - Recommendation: Use alongside the Kind CLI approach for comparing IaC vs imperative workflows
 
 3. **multi-env-config.yaml** - Standalone configuration comparison (informational, not executable)
    - Recommendation: Keep for learning environment design principles
@@ -411,10 +404,26 @@ All other files are core to the chapter content and should be retained.
 
 ## Prerequisites
 
+### Docker Runtime (Required)
+
+Kind runs Kubernetes nodes as Docker containers, so a Docker-compatible runtime must be running **before** you create a cluster.
+
+- **Docker Desktop** (macOS / Windows): Open Docker Desktop and wait for the engine to start.
+- **Colima** (macOS, lightweight alternative): `colima start`
+- **Docker Engine** (Linux): `sudo systemctl start docker`
+
+Verify Docker is reachable:
+```bash
+docker info --format '{{.ServerVersion}}'
+# Should print a version like 24.0.7 — if you see a connection error, start your runtime first.
+```
+
 ### Required Tools
 
 1. **Kind** (v0.20+) - Kubernetes in Docker
    ```bash
+   # macOS: brew install kind
+   # Linux:
    curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
    chmod +x ./kind && sudo mv ./kind /usr/local/bin
    ```
@@ -451,15 +460,12 @@ All other files are core to the chapter content and should be retained.
    sudo apt-get install -y bats
    ```
 
-8. **Python** (v3.8+) with pip packages:
+8. **Python** (v3.8+) with pip packages (installed via virtual environment in Step 2a):
    ```bash
-   pip install pulumi pulumi-kubernetes pulumi-docker pyyaml
+   cd pulumi-cluster
+   python3 -m venv venv && source venv/bin/activate
+   pip install -r requirements.txt   # pulumi, pulumi-kubernetes, pyyaml
    ```
-
-### Optional Tools (for AWS EKS alternative)
-
-- **AWS CLI** (v2.0+) with configured credentials
-- **pulumi-aws** and **pulumi-eks** Python packages
 
 ## Step-by-Step Instructions
 
@@ -493,9 +499,23 @@ cat modules/cluster.py
 
 ### Phase 2: Environment Setup
 
-**Step 2a: Initialize Pulumi Stack**
+**Step 2a: Create a Python Virtual Environment and Install Dependencies**
 ```bash
 cd pulumi-cluster
+python3 -m venv venv
+source venv/bin/activate      # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+The `requirements.txt` installs `pulumi`, `pulumi-kubernetes`, and `pyyaml`. Pulumi expects the virtual environment in a `venv/` directory (configured in `Pulumi.yaml`).
+
+**Expected Output:**
+```
+Successfully installed pulumi-3.x.x pulumi-kubernetes-4.x.x pyyaml-6.x
+```
+
+**Step 2b: Initialize Pulumi Stack**
+```bash
 pulumi stack init dev
 # Or select existing stack: pulumi stack select dev
 ```
@@ -507,15 +527,13 @@ Setting organization to 'personal'
 Default runtime language python
 ```
 
-**Step 2b: Configure Pulumi Settings**
+**Step 2c: Configure Pulumi Settings**
 ```bash
 # For Kind cluster (local development):
 pulumi config set cluster:name platform-dev
 pulumi config set cluster:kubernetesVersion 1.27
 
-# For AWS EKS (optional):
-pulumi config set aws:region us-east-1
-pulumi config set cluster:numWorkerNodes 3
+pulumi config set cluster:numWorkerNodes 2
 ```
 
 **Expected Output:**
@@ -526,72 +544,96 @@ Set 'cluster:kubernetesVersion' to '1.27'
 
 ### Phase 3: Cluster Deployment
 
-**Step 3a: Deploy Infrastructure (Kind)**
+**Step 3a: Create the Kind Cluster**
 
-**Option A: Using Python modules directly:**
+The Kind cluster must exist **before** running Pulumi. Pulumi provisions namespaces and quotas on an already-running cluster.
+
 ```bash
-cd ..
-# Create a custom Pulumi program using cluster.py and network.py modules
-# This approach is documented in the chapter
-pulumi up
-```
-
-**Option B: Using provided EKS stack (requires AWS credentials):**
-```bash
-cd pulumi-cluster
-pulumi up
-```
-
-**Expected Output:**
-- Resource creation summary showing VPC, subnets, EKS cluster, node groups
-- Cluster endpoint and kubeconfig configuration
-- Duration: 15-20 minutes for full cluster provisioning
-
-**Step 3b: Configure kubectl Access**
-```bash
-# For EKS:
-aws eks update-kubeconfig --region us-east-1 --name platform-cluster
-
-# For Kind (if using):
-kind get kubeconfig --name platform-dev > ~/.kube/kind-config-platform-dev
-export KUBECONFIG=~/.kube/kind-config-platform-dev
+kind create cluster --name platform-dev --config - <<EOF
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 80
+        hostPort: 8080
+      - containerPort: 443
+        hostPort: 8443
+  - role: worker
+  - role: worker
+EOF
 ```
 
 **Expected Output:**
 ```
-Updated context arn:aws:eks:us-east-1:ACCOUNT:cluster/platform-cluster in /home/user/.kube/config
+Creating cluster "platform-dev" ...
+ ✓ Ensuring node image (kindest/node:v1.28.0) 🖼
+ ✓ Preparing nodes 📦 📦 📦
+ ✓ Writing configuration 📜
+ ✓ Starting control-plane 🕹️
+ ✓ Installing CNI 🔌
+ ✓ Installing StorageClass 💾
+ ✓ Joining worker nodes 🚜
+Set kubectl context to "kind-platform-dev"
 ```
 
-**Step 3c: Verify Cluster Readiness**
+**Step 3b: Verify the Cluster is Running**
 ```bash
 kubectl get nodes
-kubectl get pods -A
 ```
 
 **Expected Output:**
 ```
-NAME                          STATUS   ROLES           AGE   VERSION
-platform-cluster-node-1       Ready    control-plane   5m    v1.27.0
-platform-cluster-node-2       Ready    <none>          5m    v1.27.0
+NAME                         STATUS   ROLES           AGE   VERSION
+platform-dev-control-plane   Ready    control-plane   1m    v1.28.0
+platform-dev-worker          Ready    <none>          1m    v1.28.0
+platform-dev-worker2         Ready    <none>          1m    v1.28.0
+```
+
+**Step 3c: Run Pulumi to Provision Namespaces and Quotas**
+
+Pulumi fetches the kubeconfig from the running Kind cluster automatically and creates namespaces, resource quotas, and limit ranges.
+
+```bash
+pulumi up --yes
+```
+
+**Expected Output:**
+```
+Updating (dev)
+     Type                              Name                  Status
+ +   pulumi:pulumi:Stack               platform-cluster-dev  created
+ +   ├─ pulumi:providers:kubernetes     kind-provider         created
+ +   ├─ kubernetes:core/v1:Namespace    platform-system       created
+ +   ├─ kubernetes:core/v1:Namespace    monitoring            created
+ +   ├─ kubernetes:core/v1:Namespace    ingress               created
+ +   ├─ kubernetes:core/v1:Namespace    databases             created
+ +   ├─ kubernetes:core/v1:Namespace    apps                  created
+ +   └─ ... (ResourceQuotas and LimitRanges for each namespace)
+
+Resources:
+    + 16 created
+```
+
+**Step 3d: Verify Namespaces**
+```bash
+kubectl get namespaces --show-labels | grep pulumi
+```
+
+**Expected Output:**
+```
+apps              Active   10s   environment=dev,managed-by=pulumi
+databases         Active   10s   environment=dev,managed-by=pulumi
+ingress           Active   10s   environment=dev,managed-by=pulumi
+monitoring        Active   10s   environment=dev,managed-by=pulumi
+platform-system   Active   10s   environment=dev,managed-by=pulumi
 ```
 
 ### Phase 4: Platform Services Deployment (GitOps)
 
-**Step 4a: Create Flux System Namespace**
-```bash
-kubectl create namespace flux-system
-kubectl apply -f platform-services.yaml
-```
+**Important:** Flux must be installed **before** applying `platform-services.yaml`. The manifest contains Flux CRDs (HelmRelease, Kustomization, HelmRepository) that only exist after Flux is running. It also contains cert-manager and Gatekeeper CRDs that only exist after those tools are deployed by Flux.
 
-**Expected Output:**
-```
-namespace/istio-system created
-helmrelease.helm.toolkit.fluxcd.io/istio-base created
-helmrelease.helm.toolkit.fluxcd.io/istiod created
-...
-```
-
-**Step 4b: Deploy Flux GitOps Controller**
+**Step 4a: Install Flux GitOps Controller**
 ```bash
 # Option 1: Using Flux CLI (recommended)
 flux install --namespace flux-system
@@ -607,28 +649,79 @@ helm install flux2 fluxcd-community/flux2 --namespace flux-system --create-names
 ✓ components are healthy
 ```
 
-**Step 4c: Verify Flux Deployment**
+**Step 4b: Verify Flux Is Ready**
 ```bash
-flux check --pre
-flux get source git
-flux get kustomization
+flux check
 ```
 
 **Expected Output:**
 ```
 ► checking prerequisites
-✓ kubernetes 1.27.0 >= 1.20.6
-✓ kustomize 4.5.7 >= 3.1.0
+✓ kubernetes 1.28.0 >= 1.20.6
+✓ kustomize 5.x.x >= 3.1.0
 ...
 all checks passed
 ```
 
+**Step 4c: Apply Platform Services and Create the Application Namespace**
+
+Apply the manifest. Namespaces, HelmRepositories, and HelmReleases will be created. Flux will start reconciling and install Istio, cert-manager, Prometheus, and Gatekeeper automatically. Some CRD-dependent resources (ClusterIssuers, Constraints) will warn on this first apply — that's expected.
+
+```bash
+kubectl create namespace application
+kubectl apply -f platform-services.yaml
+```
+
+**Expected Output:**
+```
+namespace/istio-system created
+helmrepository.source.toolkit.fluxcd.io/istio created
+helmrelease.helm.toolkit.fluxcd.io/istio-base created
+...
+# Warnings about ClusterIssuer, ConstraintTemplate — expected on first run
+```
+
+**Step 4d: Wait for Flux to Reconcile, Then Re-Apply**
+
+Flux needs 1–2 minutes to install the Helm charts (cert-manager, Gatekeeper, etc.) which register the CRDs that the remaining resources depend on. Wait, then re-apply:
+
+```bash
+# Monitor progress — wait until cert-manager and gatekeeper show Ready
+flux get helmrelease -A
+
+# Wait 60s for CRDs to fully register, then re-apply
+sleep 60 && kubectl apply -f platform-services.yaml
+```
+
+**Expected Output:**
+```
+clusterissuer.cert-manager.io/letsencrypt-prod created
+clusterissuer.cert-manager.io/letsencrypt-staging created
+constrainttemplate.templates.gatekeeper.sh/k8srequiredlimits unchanged
+k8srequiredlimits.constraints.gatekeeper.sh/require-limits created
+constrainttemplate.templates.gatekeeper.sh/k8sallowedregistries unchanged
+# K8sAllowedRegistries Constraint may still warn — Gatekeeper needs ~10s more
+```
+
+**Step 4e: Final Re-Apply for Gatekeeper Constraints**
+
+Gatekeeper generates Constraint CRDs from ConstraintTemplates asynchronously. A short wait and one more apply picks up any remaining Constraints:
+
+```bash
+sleep 10 && kubectl apply -f platform-services.yaml
+```
+
+**Expected Output (clean — no warnings):**
+```
+k8sallowedregistries.constraints.gatekeeper.sh/allowed-registries created
+# Everything else shows 'unchanged'
+```
+
 ### Phase 5: Service Mesh Configuration
 
-**Step 5a: Deploy Istio**
+**Step 5a: Verify Istio Deployment**
 ```bash
-# Istio is deployed via platform-services.yaml HelmRelease
-# Monitor deployment status
+# Istio is deployed via Flux HelmRelease — monitor deployment status
 kubectl rollout status deployment/istiod -n istio-system --timeout=5m
 ```
 
@@ -811,13 +904,8 @@ kind delete cluster --name platform-dev
 
 **Expected Output:**
 ```
-Resources to delete:
- - eks:Cluster: platform-cluster
- - ec2:Instance: platform-cluster-worker-1
- ...
-
-Do you want to perform this destroy? [yes/no]: yes
-...
+Deleting cluster "platform-dev" ...
+Deleted nodes: ["platform-dev-control-plane" "platform-dev-worker" "platform-dev-worker2"]
 Stack 'dev' has been removed!
 ```
 
@@ -965,6 +1053,186 @@ Website Chapter 2 Exercises section lists:
 
 ## Troubleshooting
 
+### Docker / Colima Issues
+
+**`kind create cluster` fails with "failed to get docker info" or "docker.sock: connect: no such file or directory":**
+
+Your Docker runtime isn't running. Start it first:
+```bash
+# Colima (macOS):
+colima start
+
+# Docker Desktop (macOS / Windows):
+# Open Docker Desktop from your Applications and wait for the engine icon to turn green.
+
+# Docker Engine (Linux):
+sudo systemctl start docker
+```
+
+Then verify Docker is reachable before retrying:
+```bash
+docker info --format '{{.ServerVersion}}'
+```
+
+### Pulumi / Kubeconfig Issues
+
+**`pulumi up` fails with "no configuration has been provided" or "Kubernetes cluster is unreachable":**
+
+The Kind cluster must exist before running Pulumi. Create it first:
+```bash
+kind create cluster --name platform-dev --config kind-config.yaml
+```
+
+Then verify kubectl can reach the cluster:
+```bash
+kubectl get nodes
+```
+
+If the cluster exists but kubectl can't connect, set the context:
+```bash
+kubectl cluster-info --context kind-platform-dev
+```
+
+### CRD / Platform-Services Ordering Issues
+
+**`kubectl apply -f platform-services.yaml` fails with "no matches for kind HelmRelease" or "ensure CRDs are installed first":**
+
+Two possible causes:
+
+1. **Flux not installed yet.** Flux must be installed before applying `platform-services.yaml`:
+```bash
+flux install --namespace flux-system
+kubectl apply -f platform-services.yaml
+```
+
+2. **Deprecated API versions.** If Flux is installed but HelmRelease/HelmRepository still fail, the manifest may use old API versions (`v2beta1`, `v1beta2`) that have been removed in newer Flux releases. Update them:
+   - `helm.toolkit.fluxcd.io/v2beta1` → `helm.toolkit.fluxcd.io/v2`
+   - `source.toolkit.fluxcd.io/v1beta2` → `source.toolkit.fluxcd.io/v1`
+
+**ClusterIssuer or ConstraintTemplate resources fail on first apply:**
+
+These depend on CRDs from cert-manager and Gatekeeper, which are deployed by Flux HelmReleases. Wait for Flux to finish reconciling, then re-apply:
+```bash
+# Check HelmRelease status
+flux get helmrelease -A
+
+# Once cert-manager and gatekeeper show Ready, re-apply
+kubectl apply -f platform-services.yaml
+```
+
+**Constraint fails with "strict decoding error: unknown field spec.parameters":**
+
+When you update a ConstraintTemplate (e.g. to add a `parameters` schema), Gatekeeper needs a few seconds to regenerate the Constraint CRD. Wait and re-apply:
+```bash
+sleep 10 && kubectl apply -f platform-services.yaml
+```
+
+**ClusterIssuers still fail even after cert-manager HelmRelease shows Ready:**
+
+cert-manager CRDs can take 30–60 seconds to fully register after the HelmRelease succeeds. Verify the CRDs exist, then re-apply:
+```bash
+# Check if cert-manager CRDs are registered
+kubectl get crd | grep cert-manager
+
+# If clusterissuers.cert-manager.io is listed, re-apply
+kubectl apply -f platform-services.yaml
+```
+
+**K8sAllowedRegistries Constraint fails with "ensure CRDs are installed first":**
+
+ConstraintTemplate CRDs are generated by Gatekeeper after the template is applied. The matching Constraint can only be created after Gatekeeper has processed the template. Wait and re-apply:
+```bash
+# Verify the CRD was generated from the ConstraintTemplate
+kubectl get crd | grep k8sallowedregistries
+
+# Once listed, re-apply
+kubectl apply -f platform-services.yaml
+```
+
+**General tip — multiple re-applies are normal:**
+
+Because platform-services.yaml bundles everything into one file, resources with CRD dependencies will fail until their parent CRDs are installed by Flux. The expected workflow is: apply → wait for Flux → re-apply → wait for CRD propagation → re-apply. After 2–3 applies, everything will be created.
+
+**"namespaces 'application' not found" error:**
+
+The `application` namespace must exist before applying NetworkPolicies that target it:
+```bash
+kubectl create namespace application
+kubectl apply -f platform-services.yaml
+```
+
+**`kubectl apply` fails with "TLS handshake timeout" or "failed to download openapi":**
+
+The API server is temporarily overloaded (common right after installing Flux on a resource-constrained Kind cluster). Retry with validation disabled:
+```bash
+kubectl apply -f platform-services.yaml --validate=false
+```
+
+If timeouts persist, give Colima more resources:
+```bash
+colima stop
+colima start --cpu 4 --memory 6
+```
+
+### Gatekeeper Webhook Timeout
+
+**`kubectl label namespace` or `kubectl apply` fails with "failed calling webhook check-ignore-label.gatekeeper.sh: context deadline exceeded":**
+
+Gatekeeper's validating webhook isn't ready yet or is timing out. This commonly happens right after Flux installs Gatekeeper. Check if Gatekeeper pods are running:
+```bash
+# Check Gatekeeper pods (should be in gatekeeper-system)
+kubectl get pods -n gatekeeper-system | grep gatekeeper
+
+# If nothing found, check flux-system (Flux may install there if targetNamespace is missing)
+kubectl get pods -n flux-system | grep gatekeeper
+```
+
+If the pods are running but the webhook still times out, delete the webhook configuration to unblock yourself — Gatekeeper will re-create it automatically:
+```bash
+kubectl delete validatingwebhookconfiguration gatekeeper-validating-webhook-configuration
+kubectl label namespace application istio-injection=enabled --overwrite
+```
+
+If pods aren't running, check the HelmRelease:
+```bash
+flux get helmrelease gatekeeper -n flux-system
+```
+
+### Istio Mesh Config Issues
+
+**`kubectl apply -f istio-mesh-config.yaml` fails with "namespaces 'platform-apps' not found":**
+
+The Istio mesh config expects the `application` namespace (not `platform-apps`). Make sure you're using the updated `istio-mesh-config.yaml` and that the namespace exists:
+```bash
+kubectl create namespace application
+kubectl label namespace application istio-injection=enabled --overwrite
+kubectl apply -f istio-mesh-config.yaml
+```
+
+**DestinationRule fails with "unknown field minRequestVolume" or Telemetry fails with "unknown field dimensions":**
+
+These fields were removed or renamed in newer Istio versions (1.22+). The updated `istio-mesh-config.yaml` uses the correct field names for Istio 1.22+:
+- `outlierDetection.minRequestVolume` has been removed — delete it
+- `Telemetry` uses `telemetry.istio.io/v1` with `overrides`/`tagOverrides` instead of `v1alpha1` with `dimensions`
+
+**RequestAuthentication fails with "spec.jwtRules[0].audiences must be of type array":**
+
+The `audiences` field in a `RequestAuthentication` must be a YAML list, not a plain string:
+```yaml
+# Wrong
+audiences: "platform-api"
+
+# Correct
+audiences:
+  - "platform-api"
+```
+
+### Namespace Provisioner Issues
+
+**`namespace-provisioner.py` fails with "unsupported scope applied to resource" on ResourceQuota:**
+
+The `scopeSelector` with `PriorityClass` scope cannot be combined with CPU/memory resource quotas — it only applies to pod-count resources. Remove the `scopeSelector` block from the ResourceQuota manifest entirely. The quota still enforces all resource limits without it.
+
 ### Cluster Issues
 
 **Cluster stuck pending:**
@@ -1052,7 +1320,7 @@ python test-cluster-health.py -v
 
 - [Kind Documentation](https://kind.sigs.k8s.io/)
 - [Pulumi Kubernetes Provider](https://www.pulumi.com/docs/reference/pkg/kubernetes/)
-- [Pulumi AWS Provider](https://www.pulumi.com/docs/reference/pkg/aws/)
+- [Pulumi Command Provider](https://www.pulumi.com/registry/packages/command/)
 - [Flux Documentation](https://fluxcd.io/docs/)
 - [Istio Documentation](https://istio.io/latest/docs/)
 - [OPA/Gatekeeper](https://open-policy-agent.github.io/gatekeeper/)
