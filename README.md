@@ -107,7 +107,7 @@ Bitwarden is the book's secrets manager. Chapter 1 walks you through account cre
 | Ch7 | `load-secrets.sh` | `peh-github` | `GITHUB_TOKEN`, `GITHUB_ORG` |
 | Ch9 | `load-secrets.sh` | `peh-db` | `POSTGRES_PASSWORD` |
 | Ch10 | `load-secrets.sh` | `peh-backstage` | `BACKSTAGE_URL`, `BACKSTAGE_TOKEN` |
-| Ch14 | `load-secrets.sh` | `peh-openai` | `OPENAI_API_KEY`, `PINECONE_API_KEY` |
+| Ch14 | `load-secrets.sh` | `peh-anthropic` | `ANTHROPIC_API_KEY`, `PINECONE_API_KEY` |
 
 Every `load-secrets.sh` sources the shared `bw-helper.sh` from Chapter 1. If you chose not to use Bitwarden, each chapter README also shows the manual `export` commands.
 
@@ -357,3 +357,8 @@ Each `ChNN/` folder contains its own `README.md` with full prerequisites, step-b
 Additional resources, videos, case studies, and interactive tools are available at:
 
 **https://peh-packt.platformetrics.com/**
+
+---
+
+**Author:** Ajay Chankramath (ajay@platformetrics.com)
+**Book:** The Platform Engineer's Handbook (Packt Publishing)

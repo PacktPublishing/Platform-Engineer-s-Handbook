@@ -1404,7 +1404,7 @@ kubectl get pods -n chaos-mesh
 | Tool | Version | Purpose |
 |------|---------|---------|
 | LangChain | ≥0.1 | LLM application framework |
-| OpenAI API | N/A | LLM provider (requires API key) |
+| Anthropic Claude API | N/A | LLM provider (requires API key) |
 | ChromaDB | ≥0.4 | Vector database for embeddings |
 
 #### Python AI/ML Libraries
@@ -1412,10 +1412,8 @@ kubectl get pods -n chaos-mesh
 Install the Python packages for the RAG pipeline, multi-agent system, and AI governance components:
 
 ```bash
-pip3 install langchain langchain-openai langchain-community \
-  chromadb sentence-transformers \
-  openai tiktoken \
-  prometheus-client kubernetes pyyaml
+cd Ch14
+pip3 install -r requirements.txt
 # On Linux, add --break-system-packages if installing globally
 ```
 
@@ -1423,8 +1421,8 @@ pip3 install langchain langchain-openai langchain-community \
 > **Common pitfalls to watch out for**
 > - LangChain's API changes frequently between minor versions; pin your version in `requirements.txt` to avoid breaking changes.
 > - ChromaDB's default in-memory mode loses all embeddings on restart; configure persistent storage for anything beyond quick tests.
-> - OpenAI API rate limits are easily hit when batch-processing documents for RAG; implement exponential backoff and request throttling.
-> - Scripts run in mock mode without an API key. Set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` to use real LLM responses.
+> - Anthropic API rate limits can be hit when batch-processing documents for RAG; implement exponential backoff and request throttling.
+> - Scripts run in mock mode without an API key. Set `ANTHROPIC_API_KEY` to use real LLM responses.
 
 #### LLM API Key (Optional)
 
@@ -1432,19 +1430,16 @@ All Chapter 14 scripts run in mock mode by default — no API key needed. To use
 
 **macOS / Linux:**
 ```bash
-# Option A: OpenAI
-export OPENAI_API_KEY="sk-your-api-key-here"
-
-# Option B: Anthropic Claude
+# Option A: Anthropic Claude (recommended)
 export ANTHROPIC_API_KEY="sk-ant-your-key-here"
 
-# Option C: Local LLM with Ollama (no key needed)
+# Option B: Local LLM with Ollama (no key needed)
 ollama pull mistral && ollama serve
 ```
 
 **Windows (PowerShell):**
 ```powershell
-$env:OPENAI_API_KEY = "sk-your-api-key-here"
+$env:ANTHROPIC_API_KEY = "sk-ant-your-key-here"
 # Or set via System Properties > Environment Variables for persistence
 ```
 
@@ -1500,8 +1495,13 @@ The following table provides a quick lookup for which tools are needed per chapt
 | 11 | conftest*, OPA CLI*, pre-commit, prometheus-client* |
 | 12 | OpenCost*, Karpenter*, VPA*, Metrics Server* |
 | 13 | Go*, Sloth*, Velero*, Chaos Mesh* |
-| 14 | LangChain*, OpenAI API*, ChromaDB* |
+| 14 | LangChain*, Anthropic Claude API*, ChromaDB* |
 
 > **Note:** All chapters assume the foundational tools (Git, Docker, Python, Node.js, kubectl, Kind, and Helm) are already installed. See the [Foundational Tools](#foundational-tools) section at the beginning of this appendix.
 
 **Companion Website:** For the latest installation scripts, version updates, and additional resources, visit https://peh-packt.platformetrics.com/
+
+---
+
+**Author:** Ajay Chankramath (ajay@platformetrics.com)
+**Book:** The Platform Engineer's Handbook (Packt Publishing)
