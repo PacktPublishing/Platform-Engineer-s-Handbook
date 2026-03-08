@@ -54,6 +54,32 @@ This directory contains comprehensive examples and tools for implementing securi
 
 ## Prerequisites
 
+### Running This Chapter Standalone
+
+> If you are jumping into this chapter without completing earlier chapters, use these commands to set up the infrastructure dependencies. If you already have them running, skip this section.
+
+> **Note:** If you completed Chapter 2, your Kind cluster is already running. Otherwise, create one first.
+
+```bash
+# 1. Start Docker Desktop (macOS: open from Applications or Spotlight)
+open -a "Docker"
+# Wait for the Docker engine to start before continuing
+
+# 2. Create a Kind cluster (skip if you already have one)
+kind get clusters                       # Check for existing clusters
+kind create cluster --name platform-dev # Create one if none listed
+kubectl get nodes                       # Verify node(s) are Ready
+
+# Install cert-manager
+helm repo add jetstack https://charts.jetstack.io
+helm repo update
+helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --set crds.enabled=true
+
+# Install OPA Gatekeeper
+kubectl apply -f https://raw.githubusercontent.com/open-policy-agent/gatekeeper/v3.14.0/deploy/gatekeeper.yaml
+
+```
+
 ### System Requirements
 - Kubernetes cluster 1.21+ or local Kind cluster for testing
 - kubectl configured and authenticated to cluster

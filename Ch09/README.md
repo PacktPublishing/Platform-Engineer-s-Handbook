@@ -74,6 +74,29 @@ This directory contains all code listings and exercises from Chapter 9, organize
 
 ## Prerequisites
 
+### Running This Chapter Standalone
+
+> If you are jumping into this chapter without completing earlier chapters, use these commands to set up the infrastructure dependencies. If you already have them running, skip this section.
+
+> **Note:** Crossplane runs entirely inside the Kind cluster. No cloud credentials are needed for the local Kubernetes and Helm providers.
+
+```bash
+# 1. Start Docker Desktop (macOS: open from Applications or Spotlight)
+open -a "Docker"
+# Wait for the Docker engine to start before continuing
+
+# 2. Create a Kind cluster (skip if you already have one)
+kind get clusters                       # Check for existing clusters
+kind create cluster --name platform-dev # Create one if none listed
+kubectl get nodes                       # Verify node(s) are Ready
+
+# Install Crossplane
+helm repo add crossplane-stable https://charts.crossplane.io/stable
+helm repo update
+helm install crossplane crossplane-stable/crossplane --namespace crossplane-system --create-namespace --wait
+
+```
+
 ### System Requirements
 - Kubernetes 1.20 or later (with sufficient RBAC permissions for Crossplane installation)
 - kubectl configured to access your cluster

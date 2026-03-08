@@ -487,6 +487,29 @@ Pre-computed metrics for faster dashboard queries:
 
 ## Prerequisites
 
+### Running This Chapter Standalone
+
+> If you are jumping into this chapter without completing earlier chapters, use these commands to set up the infrastructure dependencies. If you already have them running, skip this section.
+
+> **Note:** The observability stack (Prometheus, Grafana, Jaeger) is deployed as part of this chapter. You need a running Kind cluster before starting.
+
+```bash
+# 1. Start Docker Desktop (macOS: open from Applications or Spotlight)
+open -a "Docker"
+# Wait for the Docker engine to start before continuing
+
+# 2. Create a Kind cluster (skip if you already have one)
+kind get clusters                       # Check for existing clusters
+kind create cluster --name platform-dev # Create one if none listed
+kubectl get nodes                       # Verify node(s) are Ready
+
+# Install Prometheus + Grafana
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace --wait
+
+```
+
 ### Software Requirements
 - **Python 3.8+** - For running Python scripts
 - **Kubernetes 1.20+** - For DaemonSet deployment (optional)

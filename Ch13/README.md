@@ -54,6 +54,39 @@ The code in this directory implements a complete resilience automation platform 
 
 ## Prerequisites
 
+### Running This Chapter Standalone
+
+> If you are jumping into this chapter without completing earlier chapters, use these commands to set up the infrastructure dependencies. If you already have them running, skip this section.
+
+> **Note:** The resilience tools (Velero, Chaos Mesh) and monitoring stack are all deployed inside the Kind cluster. No cloud credentials needed.
+
+```bash
+# 1. Start Docker Desktop (macOS: open from Applications or Spotlight)
+open -a "Docker"
+# Wait for the Docker engine to start before continuing
+
+# 2. Create a Kind cluster (skip if you already have one)
+kind get clusters                       # Check for existing clusters
+kind create cluster --name platform-dev # Create one if none listed
+kubectl get nodes                       # Verify node(s) are Ready
+
+# Install Prometheus + Grafana
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace --wait
+
+# Install Velero + MinIO
+helm repo add vmware-tanzu https://vmware-tanzu.github.io/helm-charts
+helm repo update
+helm install velero vmware-tanzu/velero --namespace velero --create-namespace
+
+# Install Chaos Mesh
+helm repo add chaos-mesh https://charts.chaos-mesh.org
+helm repo update
+helm install chaos-mesh chaos-mesh/chaos-mesh --namespace chaos-mesh --create-namespace
+
+```
+
 ### Required Tools
 
 1. **Go** (1.21+) - Required to install Sloth
@@ -188,13 +221,10 @@ kubectl get secret monitoring-grafana -n monitoring -o jsonpath='{.data.admin-pa
 # Generate Prometheus rules from Sloth spec
 bash generate-slo-rules.sh sloth-slo-spec.yaml prometheus-slo-rules.yaml
 
-# Apply generated rules to Kubernetes
-kubectl apply -f prometheus-slo-rules.yaml
-
 # Verify PrometheusRule created
 kubectl get prometheusrule -A | grep -i slo
 ```
-**Expected Output:** `prometheus-slo-rules` PrometheusRule created in default namespace
+**Expected Output:** `demo-app-slos` PrometheusRule created in monitoring namespace
 
 **Next Steps:** Verify metrics in Prometheus UI at localhost:9090
 
@@ -239,7 +269,7 @@ kubectl get pods -n velero
 ```
 **Expected Output:** Velero deployment and node-agent pods running in the `velero` namespace
 
-> **Note:** `velero install` creates the namespace, installs CRDs, deploys the controller, and configures the default BackupStorageLocation. The `--use-node-agent` flag enables file-system-level backups (replaces the deprecated `--use-restic`).
+> **Note:** `velero install` creates the namespace, installs CRDs, deploys the controller, and configures the default BackupStorageLocation. The `--use-node-agent` flag enables file-system-level backups (replaces the deprecated `--use-restic`). This is the recommended approach for modern Kubernetes clusters.
 
 #### Step 2.2: Deploy MinIO (Local S3 Storage)
 ```bash
@@ -254,7 +284,7 @@ velero backup-location get
 ```
 **Expected Output:** MinIO pods running, `default` backup location phase is `Available`
 
-**Next Steps:** Proceed to Step 2.2
+**Next Steps:** Proceed to Step 2.3
 
 #### Step 2.3: Create Backup Schedules
 ```bash
@@ -263,15 +293,8 @@ kubectl apply -f velero-schedule.yaml
 
 # Verify schedules created
 velero schedule get
-
-# Trigger first backup manually for testing
-velero backup create test-backup-001 --wait
-
-# Monitor backup progress
-velero backup describe test-backup-001
-velero backup logs test-backup-001
 ```
-**Expected Output:** Two schedules (`daily-backup`, `hourly-backup`) active, first backup completes
+**Expected Output:** Two schedules (`daily-backup`, `hourly-backup`) active
 
 **Next Steps:** Proceed to Step 2.4
 
@@ -305,23 +328,22 @@ bash velero-dr-commands.sh
 # Monitor restoration
 watch "velero restore get"
 
-# Verify restored namespaces
-kubectl get namespaces | grep -E "team-alpha|team-beta"
+# Verify restored namespace
+kubectl get namespaces | grep dr-drill-demo
 
 # Validate restored pods
-kubectl get pods -n team-alpha -o wide
+kubectl get pods -n dr-drill-demo -o wide
 
 # Cleanup backups from drill
 velero backup delete dr-drill-backup-* --confirm
 velero restore delete dr-drill-restore-* --confirm
 ```
-**Expected Output:** DR drill completes with RTO measured (e.g., "Actual Recovery Time: 45s"), namespaces and pods restored
+**Expected Output:** DR drill completes with RTO measured (e.g., "Actual Recovery Time: 45s"), namespace and pods restored
 
 **Validation Checks:**
 - RTO meets target (script configurable, default 600s)
-- All restored namespaces exist
+- Restored namespace exists
 - Pods are running and ready
-- Data integrity verified (pod counts match pre-disaster state)
 
 **Next Steps:** Proceed to Phase 3 (chaos engineering)
 
@@ -396,7 +418,9 @@ helm repo update
 helm install chaos-mesh chaos-mesh/chaos-mesh \
   --namespace chaos-mesh --create-namespace \
   --set chaosDaemon.privileged=true \
-  --set controllerManager.enableWebhook=true
+  --set controllerManager.enableWebhook=true \
+  --set chaosDaemon.runtime=containerd \
+  --set chaosDaemon.socketPath=/run/containerd/containerd.sock
 
 # Verify installation
 kubectl get pods -n chaos-mesh
@@ -409,44 +433,24 @@ kubectl api-resources | grep -i chaos
 #### Step 3.2: Deploy Demo Application (Target for Chaos Tests)
 ```bash
 # Create namespace for chaos testing
-kubectl create namespace team-alpha
+kubectl create namespace chaos-testing
 
-# Apply demo application with backup hooks
-kubectl apply -f backup-config-annotation.yaml -n team-alpha
+# Deploy demo application
+kubectl create deployment demo-app --image=nginx:alpine --replicas=3 -n chaos-testing
 
 # Wait for pods to be ready
-kubectl rollout status deployment/demo-app -n team-alpha --timeout=300s
+kubectl wait --for=condition=available deployment/demo-app -n chaos-testing --timeout=60s
 
 # Verify application running
-kubectl get pods -n team-alpha -l app=demo-app
-kubectl port-forward -n team-alpha svc/demo-app 8080:8080
+kubectl get pods -n chaos-testing
 ```
-**Expected Output:** 3 demo-app pods running, service accessible at localhost:8080
+**Expected Output:** 3 demo-app pods running in chaos-testing namespace
 
 **Next Steps:** Run chaos experiments in Step 3.3
 
 #### Step 3.3: Run Basic Chaos Experiments
 
-**Experiment 1: Network Latency Injection**
-```bash
-# Apply network latency chaos (Listing 13.3 example)
-kubectl apply -f chaos-network-delay.yaml
-
-# Monitor impact on application
-watch "kubectl get pods -n production"
-
-# Query Prometheus for latency impact
-# In Prometheus UI: histogram_quantile(0.99, request_duration_seconds_bucket)
-
-# Experiment runs for 5 minutes (cron scheduled) or apply and wait
-sleep 5m
-
-# Verify pods recovered
-kubectl get pods -n production -l app=api-service
-```
-**Expected Output:** Network latency injected for 5 minutes, pods remain running, latency metric increases in Prometheus
-
-**Experiment 2: Pod Failure**
+**Experiment 1: Pod Failure**
 ```bash
 # Apply pod failure chaos (kills 30% of matching pods)
 kubectl apply -f chaos-mesh-pod-failure.yaml
@@ -455,17 +459,14 @@ kubectl apply -f chaos-mesh-pod-failure.yaml
 kubectl get events -n chaos-testing | head -20
 
 # Watch deployment recovery
-watch "kubectl get pods -n team-alpha"
+watch "kubectl get pods -n chaos-testing"
 
 # Measure recovery time (should auto-restart due to deployment replica count)
-
-# Verify pods recovered after 1 minute
-sleep 65
-kubectl get pods -n team-alpha -l app=demo-app
+kubectl get pods -n chaos-testing -l app=demo-app
 ```
 **Expected Output:** Some pods killed and immediately restarted by deployment controller
 
-**Experiment 3: Extended Network Chaos**
+**Experiment 2: Extended Network Chaos**
 ```bash
 # Apply comprehensive network experiments (delay, loss, bandwidth, corruption)
 kubectl apply -f chaos-experiment-network.yaml
@@ -474,8 +475,8 @@ kubectl apply -f chaos-experiment-network.yaml
 kubectl get networkchaos -n chaos-testing
 
 # Monitor application behavior
-kubectl exec -it $(kubectl get pod -n team-alpha -l app=demo-app -o jsonpath='{.items[0].metadata.name}') \
-  -n team-alpha -- curl -v http://localhost:8080/health
+kubectl exec -it $(kubectl get pod -n chaos-testing -l app=demo-app -o jsonpath='{.items[0].metadata.name}') \
+  -n chaos-testing -- curl -v http://localhost:8080/health
 ```
 **Expected Output:** Application handles network degradation gracefully, responds despite latency/loss
 
@@ -489,13 +490,13 @@ kubectl get workflows -n chaos-testing
 kubectl describe workflow resilience-test-workflow -n chaos-testing
 
 # Watch pods during workflow
-watch "kubectl get pods -n team-alpha"
+watch "kubectl get pods -n chaos-testing"
 
 # View workflow logs
 kubectl logs -n chaos-mesh -l app=chaos-controller-manager --tail=50
 
 # Verify recovery after workflow completes
-kubectl get deployment demo-app -n team-alpha -o jsonpath='{.status.replicas}'
+kubectl get deployment demo-app -n chaos-testing -o jsonpath='{.status.replicas}'
 ```
 **Expected Output:** Workflow completes successfully, all pods recovered, recovery verification passes
 
@@ -808,7 +809,7 @@ All code examples align with manuscript listings and section references.
 sloth version
 
 # Check SLO spec syntax
-kubectl apply -f sloth-slo-spec.yaml --dry-run=client -o yaml
+sloth generate -i sloth-slo-spec.yaml -o /dev/null
 
 # View Prometheus rule group
 kubectl get prometheusrule -o yaml
@@ -852,7 +853,7 @@ kubectl logs -n chaos-mesh -l app=chaos-daemon
 ## License and Attribution
 
 Code examples from "The Platform Engineer's Handbook" (Packt Publishing)
-- Author: [Author Name]
+- Author: Ajay Ravindran
 - Updated: February 2026
 - License: [As specified in handbook]
 
@@ -862,11 +863,10 @@ All tool configurations are compatible with open-source versions of Sloth, Veler
 
 **Quick Start Checklist:**
 - [ ] Install prerequisites (Sloth, Velero, Chaos Mesh, Prometheus, kubectl)
-- [ ] Configure cloud credentials for Velero backups
 - [ ] Deploy Prometheus and generate SLO rules (Phase 1)
 - [ ] Run first backup and validate restore (Phase 2)
 - [ ] Run network latency chaos experiment (Phase 3)
-- [ ] Execute full DR drill and validate RTO (Phase 2.4)
+- [ ] Execute full DR drill and validate RTO (Phase 2.5)
 - [ ] Run complete test suite (Phase 4)
 - [ ] Customize SLO targets and alert thresholds for your environment
 - [ ] Integrate chaos experiments into CI/CD pipeline

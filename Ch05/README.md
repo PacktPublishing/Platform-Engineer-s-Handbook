@@ -337,6 +337,24 @@ pytest test-demo-app.py -v
 
 ## Prerequisites
 
+### Running This Chapter Standalone
+
+> If you are jumping into this chapter without completing earlier chapters, use these commands to set up the infrastructure dependencies. If you already have them running, skip this section.
+
+> **Note:** This chapter deploys a demo app to Kubernetes. You need a running Kind cluster (from Chapter 2) before starting.
+
+```bash
+# 1. Start Docker Desktop (macOS: open from Applications or Spotlight)
+open -a "Docker"
+# Wait for the Docker engine to start before continuing
+
+# 2. Create a Kind cluster (skip if you already have one)
+kind get clusters                       # Check for existing clusters
+kind create cluster --name platform-dev # Create one if none listed
+kubectl get nodes                       # Verify node(s) are Ready
+
+```
+
 ### System Requirements
 - **Python**: 3.8+ (for all Python scripts)
 - **Node.js**: 16+ (for JavaScript app and instrumentation)

@@ -94,6 +94,29 @@ This directory contains production-ready examples tied to specific chapter secti
 
 ## Prerequisites
 
+### Running This Chapter Standalone
+
+> If you are jumping into this chapter without completing earlier chapters, use these commands to set up the infrastructure dependencies. If you already have them running, skip this section.
+
+> **Note:** OPA Gatekeeper can be installed via Helm (shown above) or via raw manifests. Either method works.
+
+```bash
+# 1. Start Docker Desktop (macOS: open from Applications or Spotlight)
+open -a "Docker"
+# Wait for the Docker engine to start before continuing
+
+# 2. Create a Kind cluster (skip if you already have one)
+kind get clusters                       # Check for existing clusters
+kind create cluster --name platform-dev # Create one if none listed
+kubectl get nodes                       # Verify node(s) are Ready
+
+# Install OPA Gatekeeper
+helm repo add gatekeeper https://open-policy-agent.github.io/gatekeeper/charts
+helm repo update
+helm install gatekeeper gatekeeper/gatekeeper --namespace gatekeeper-system --create-namespace
+
+```
+
 ### Kubernetes Environment
 - **Kubernetes cluster** v1.18+ (v1.24+ recommended for latest webhook API)
 - **kubectl** configured with cluster admin access

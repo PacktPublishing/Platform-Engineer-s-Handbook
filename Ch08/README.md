@@ -310,6 +310,32 @@ In Chapter 1 we used CircleCI for infrastructure deployment pipelines with Pulum
 
 ## Prerequisites
 
+### Running This Chapter Standalone
+
+> If you are jumping into this chapter without completing earlier chapters, use these commands to set up the infrastructure dependencies. If you already have them running, skip this section.
+
+> **Note:** Canary deployments (Steps 4–5) require Istio. The monitoring stack is needed for deployment metrics and PrometheusRule resources.
+
+```bash
+# 1. Start Docker Desktop (macOS: open from Applications or Spotlight)
+open -a "Docker"
+# Wait for the Docker engine to start before continuing
+
+# 2. Create a Kind cluster (skip if you already have one)
+kind get clusters                       # Check for existing clusters
+kind create cluster --name platform-dev # Create one if none listed
+kubectl get nodes                       # Verify node(s) are Ready
+
+# Install Prometheus Operator
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace --wait
+
+# Install Istio service mesh
+istioctl install --set profile=demo -y && kubectl label namespace default istio-injection=enabled
+
+```
+
 ### Software Requirements
 
 - **Python**: 3.8+ (for pipeline-composer.py, rollback-controller.py, test-pipelines.py, ci_metrics.py)

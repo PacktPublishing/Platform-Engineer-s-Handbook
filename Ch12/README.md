@@ -84,6 +84,23 @@ This section maps each file in the code directory to specific chapter sections a
 
 ## Prerequisites
 
+### Running This Chapter Standalone
+
+> If you are jumping into this chapter without completing earlier chapters, use these commands to set up the infrastructure dependencies. If you already have them running, skip this section.
+
+> **Note:** OpenCost, HPA, VPA, and Karpenter all require Prometheus metrics. The monitoring stack must be installed before deploying cost observability tooling.
+
+```bash
+# 1. Start Docker Desktop (macOS: open from Applications or Spotlight)
+open -a "Docker"
+# Wait for the Docker engine to start before continuing
+
+# 2. Create a Kind cluster (skip if you already have one)
+kind get clusters                       # Check for existing clusters
+kind create cluster --name platform-dev # Create one if none listed
+kubectl get nodes                       # Verify node(s) are Ready
+```
+
 Before deploying the code in this chapter, ensure you have the following prerequisites installed and configured:
 
 ### Kubernetes and Core Tools

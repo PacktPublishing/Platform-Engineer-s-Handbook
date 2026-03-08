@@ -68,6 +68,24 @@ By implementing these patterns, teams can:
 
 ## Prerequisites
 
+### Running This Chapter Standalone
+
+> If you are jumping into this chapter without completing earlier chapters, use these commands to set up the infrastructure dependencies. If you already have them running, skip this section.
+
+> **Note:** This chapter builds a self-service onboarding API that interacts with Kubernetes. You need a running Kind cluster with RBAC configured (from Chapter 3).
+
+```bash
+# 1. Start Docker Desktop (macOS: open from Applications or Spotlight)
+open -a "Docker"
+# Wait for the Docker engine to start before continuing
+
+# 2. Create a Kind cluster (skip if you already have one)
+kind get clusters                       # Check for existing clusters
+kind create cluster --name platform-dev # Create one if none listed
+kubectl get nodes                       # Verify node(s) are Ready
+
+```
+
 ### System Requirements
 - Python 3.8+ (for API and automation scripts)
 - Node.js 14+ and npm (for teamService.js reference)

@@ -18,7 +18,7 @@ import hashlib
 # Configure logging with detailed format
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - [%(agent_id)s] - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
@@ -67,8 +67,10 @@ class Agent(ABC):
     def __init__(self, agent_type: str):
         self.agent_id = f"{agent_type}-{uuid.uuid4().hex[:8]}"
         self.agent_type = agent_type
-        self.logger = logging.getLogger(f"{__name__}.{agent_type}")
-        self.logger.extra = {"agent_id": self.agent_id}
+        self.logger = logging.LoggerAdapter(
+            logging.getLogger(f"{__name__}.{agent_type}"),
+            {"agent_id": self.agent_id}
+        )
         self.audit_logs: List[AuditLog] = []
     
     def log_action(

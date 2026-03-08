@@ -1424,16 +1424,22 @@ pip3 install langchain langchain-openai langchain-community \
 > - LangChain's API changes frequently between minor versions; pin your version in `requirements.txt` to avoid breaking changes.
 > - ChromaDB's default in-memory mode loses all embeddings on restart; configure persistent storage for anything beyond quick tests.
 > - OpenAI API rate limits are easily hit when batch-processing documents for RAG; implement exponential backoff and request throttling.
-> - Not setting `OPENAI_API_KEY` as an environment variable before running scripts causes immediate failures with opaque error messages.
+> - Scripts run in mock mode without an API key. Set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` to use real LLM responses.
 
-#### OpenAI API Key
+#### LLM API Key (Optional)
 
-An OpenAI API key is required for the LLM components. Sign up at [platform.openai.com](https://platform.openai.com) and set the key as an environment variable:
+All Chapter 14 scripts run in mock mode by default — no API key needed. To use a real LLM, set one of the following:
 
 **macOS / Linux:**
 ```bash
+# Option A: OpenAI
 export OPENAI_API_KEY="sk-your-api-key-here"
-# Add to ~/.bashrc or ~/.zshrc for persistence
+
+# Option B: Anthropic Claude
+export ANTHROPIC_API_KEY="sk-ant-your-key-here"
+
+# Option C: Local LLM with Ollama (no key needed)
+ollama pull mistral && ollama serve
 ```
 
 **Windows (PowerShell):**

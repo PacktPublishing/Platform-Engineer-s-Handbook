@@ -404,6 +404,19 @@ All other files are core to the chapter content and should be retained.
 
 ## Prerequisites
 
+### Running This Chapter Standalone
+
+> If you are jumping into this chapter without completing earlier chapters, use these commands to set up the infrastructure dependencies. If you already have them running, skip this section.
+
+> **Note:** Chapter 2 creates the Kind cluster itself. You only need Docker Desktop running before you start.
+
+```bash
+# 1. Start Docker Desktop (macOS: open from Applications or Spotlight)
+open -a "Docker"
+# Wait for the Docker engine to start before continuing
+
+```
+
 ### Docker Runtime (Required)
 
 Kind runs Kubernetes nodes as Docker containers, so a Docker-compatible runtime must be running **before** you create a cluster.

@@ -42,6 +42,29 @@ The following files in the code directory are **not directly referenced** in Cha
 
 ## Prerequisites
 
+### Running This Chapter Standalone
+
+> If you are jumping into this chapter without completing earlier chapters, use these commands to set up the infrastructure dependencies. If you already have them running, skip this section.
+
+> **Note:** Backstage requires PostgreSQL and Keycloak (from Chapter 3). If jumping in fresh, set up the Kind cluster, then install Keycloak before Backstage.
+
+```bash
+# 1. Start Docker Desktop (macOS: open from Applications or Spotlight)
+open -a "Docker"
+# Wait for the Docker engine to start before continuing
+
+# 2. Create a Kind cluster (skip if you already have one)
+kind get clusters                       # Check for existing clusters
+kind create cluster --name platform-dev # Create one if none listed
+kubectl get nodes                       # Verify node(s) are Ready
+
+# Install Backstage (via Helm)
+helm repo add backstage https://backstage.github.io/charts
+helm repo update
+helm install backstage backstage/backstage --namespace backstage --create-namespace
+
+```
+
 ### Required Components
 
 1. **Backstage**: Developer Portal framework

@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Incident Triage Agent: Multi-signal incident analysis and root cause detection.
 
@@ -18,11 +19,15 @@ from datetime import datetime, timedelta
 import hashlib
 
 try:
-    from langchain.chat_models import ChatOpenAI
     from langchain.prompts import PromptTemplate
     from langchain.chains import LLMChain
 except ImportError:
-    ChatOpenAI = None
+    pass
+
+try:
+    from langchain_anthropic import ChatAnthropic
+except ImportError:
+    ChatAnthropic = None
 
 
 logger = logging.getLogger(__name__)
@@ -71,22 +76,22 @@ class IncidentTriageAgent:
         Args:
             mock_mode: If True, use mock data instead of real systems
         """
-        self.mock_mode = mock_mode or not os.getenv("OPENAI_API_KEY")
+        self.mock_mode = mock_mode or not os.getenv("ANTHROPIC_API_KEY")
         self.llm = self._init_llm()
         self.incident_patterns = self._load_incident_patterns()
         self.runbook_index = self._load_runbooks()
         
     def _init_llm(self):
         """Initialize language model."""
-        if not self.mock_mode:
+        if not self.mock_mode and ChatAnthropic:
             try:
-                return ChatOpenAI(
-                    model="gpt-4-turbo-preview",
+                return ChatAnthropic(
+                    model="claude-sonnet-4-5-20250929",
                     temperature=0.3,  # Lower temp for consistency
                     max_tokens=1000
                 )
             except Exception as e:
-                logger.warning(f"Failed to initialize OpenAI: {e}. Using mock mode.")
+                logger.warning(f"Failed to initialize Claude: {e}. Using mock mode.")
                 return MockLLM()
         return MockLLM()
     
@@ -485,7 +490,7 @@ Provide a concise root cause and remediation steps."""
 
 
 class MockLLM:
-    """Mock LLM for testing without OpenAI."""
+    """Mock LLM for testing without an API key."""
     
     def invoke(self, prompt: str) -> str:
         """Return mock response."""
@@ -499,7 +504,16 @@ class MockLLM:
 if __name__ == "__main__":
     # Example usage
     agent = IncidentTriageAgent()
-    
+
+    # Display mode banner
+    print("=" * 70)
+    if not agent.mock_mode:
+        print("  MODE: LIVE — Using Anthropic Claude (claude-sonnet-4-5-20250929)")
+    else:
+        print("  MODE: MOCK — No LLM API key or langchain-anthropic not installed")
+        print("  Tip:  export ANTHROPIC_API_KEY=sk-ant-... && pip3 install langchain-anthropic")
+    print("=" * 70)
+
     incident = {
         "alert": "High error rate on payment service",
         "severity": "critical",

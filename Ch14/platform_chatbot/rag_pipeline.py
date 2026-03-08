@@ -1,9 +1,10 @@
+#!/usr/bin/env python3
 """
 RAG Pipeline: Retrieval-Augmented Generation for AI-powered platform documentation.
 
 This module implements a production-grade RAG system that:
 1. Loads markdown documentation
-2. Creates semantic embeddings (OpenAI or local)
+2. Creates semantic embeddings (HuggingFace or mock)
 3. Stores vectors in ChromaDB or Pinecone
 4. Retrieves relevant context for user queries
 5. Generates answers using LLM
@@ -13,22 +14,24 @@ import os
 import json
 import logging
 from pathlib import Path
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Union
 from dataclasses import dataclass
 from datetime import datetime
 
 try:
     from langchain.document_loaders import DirectoryLoader, TextLoader
     from langchain.text_splitter import RecursiveCharacterTextSplitter
-    from langchain.embeddings.openai import OpenAIEmbeddings
     from langchain.embeddings.huggingface import HuggingFaceEmbeddings
     from langchain.vectorstores import Chroma, Pinecone
     from langchain.chains import RetrievalQA
-    from langchain.llms import OpenAI
-    from langchain.chat_models import ChatOpenAI
     import chromadb
 except ImportError:
     chromadb = None
+
+try:
+    from langchain_anthropic import ChatAnthropic
+except ImportError:
+    ChatAnthropic = None
 
 
 logger = logging.getLogger(__name__)
@@ -56,7 +59,7 @@ class RAGPipeline:
     def __init__(
         self,
         vector_db: str = "chromadb",
-        embedding_model: str = "openai",
+        embedding_model: str = "huggingface",
         collection_name: str = "platform_docs",
         similarity_threshold: float = 0.6,
     ):
@@ -65,7 +68,7 @@ class RAGPipeline:
         
         Args:
             vector_db: "chromadb" or "pinecone"
-            embedding_model: "openai" or "huggingface"
+            embedding_model: "huggingface" (default) or "mock"
             collection_name: Vector store collection name
             similarity_threshold: Minimum similarity score for retrieval
         """
@@ -85,17 +88,14 @@ class RAGPipeline:
         
     def _init_embeddings(self, model: str):
         """Initialize embedding model."""
-        if model == "openai":
-            if not os.getenv("OPENAI_API_KEY"):
-                logger.warning(
-                    "OPENAI_API_KEY not set. Using mock embeddings for demo."
+        if model == "huggingface":
+            try:
+                return HuggingFaceEmbeddings(
+                    model_name="sentence-transformers/all-MiniLM-L6-v2"
                 )
+            except Exception:
+                logger.warning("HuggingFace embeddings unavailable. Using mock embeddings.")
                 return MockEmbeddings()
-            return OpenAIEmbeddings(model="text-embedding-3-small")
-        elif model == "huggingface":
-            return HuggingFaceEmbeddings(
-                model_name="sentence-transformers/all-MiniLM-L6-v2"
-            )
         else:
             return MockEmbeddings()
     
@@ -116,15 +116,24 @@ class RAGPipeline:
     
     def _init_llm(self):
         """Initialize language model."""
-        if os.getenv("OPENAI_API_KEY"):
-            return ChatOpenAI(
-                model="gpt-4-turbo-preview",
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if api_key and ChatAnthropic:
+            logger.info("Initializing Claude LLM (ANTHROPIC_API_KEY found)")
+            return ChatAnthropic(
+                model="claude-sonnet-4-5-20250929",
                 temperature=0.7,
                 max_tokens=1000
             )
+        if not api_key:
+            logger.warning("ANTHROPIC_API_KEY not set. Using mock LLM.")
+        elif ChatAnthropic is None:
+            logger.warning(
+                "langchain-anthropic not installed. Using mock LLM. "
+                "Run: pip3 install langchain-anthropic anthropic"
+            )
         return MockLLM()
     
-    def index_documents(self, doc_paths: List[str] | str, chunk_size: int = 1024):
+    def index_documents(self, doc_paths: Union[List[str], str], chunk_size: int = 1024):
         """
         Index documents from filesystem.
         
@@ -422,7 +431,7 @@ class PineconeStore:
 
 
 class MockEmbeddings:
-    """Mock embeddings for testing without OpenAI."""
+    """Mock embeddings for testing without an API key."""
     
     def embed_query(self, text: str) -> List[float]:
         """Return mock embedding."""
@@ -459,7 +468,7 @@ class MockVectorStore:
 
 
 class MockLLM:
-    """Mock LLM for testing without OpenAI."""
+    """Mock LLM for testing without an API key."""
     
     def invoke(self, prompt: str) -> str:
         """Return mock response."""
@@ -469,9 +478,20 @@ class MockLLM:
 
 
 if __name__ == "__main__":
-    # Example usage
-    rag = RAGPipeline(vector_db="chromadb")
-    
+    # Example usage — auto-detect available backends
+    vector_db = "chromadb" if chromadb else "mock"
+    rag = RAGPipeline(vector_db=vector_db)
+
+    # Display mode banner
+    using_real_llm = not isinstance(rag.llm, MockLLM)
+    print("=" * 70)
+    if using_real_llm:
+        print("  MODE: LIVE — Using Anthropic Claude (claude-sonnet-4-5-20250929)")
+    else:
+        print("  MODE: MOCK — No LLM API key or langchain-anthropic not installed")
+        print("  Tip:  export ANTHROPIC_API_KEY=sk-ant-... && pip3 install langchain-anthropic")
+    print("=" * 70)
+
     # Index sample documentation
     sample_docs = [
         {
