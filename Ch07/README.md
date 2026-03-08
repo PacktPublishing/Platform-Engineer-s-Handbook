@@ -791,3 +791,8 @@ These examples are provided as part of "The Platform Engineer's Handbook" by Pac
 - OpenAPI 3.0 Specification: https://spec.openapis.org/oas/v3.0.0
 - Flask Documentation: https://flask.palletsprojects.com/
 - Backstage Software Catalog: https://backstage.io/docs/features/software-catalog
+
+---
+
+**Author:** Ajay Chankramath (ajay@platformetrics.com)
+**Book:** The Platform Engineer's Handbook (Packt Publishing)

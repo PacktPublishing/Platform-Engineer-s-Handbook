@@ -1053,3 +1053,8 @@ python platform-kpi-collector.py --namespace default
 **Last Updated**: February 2025
 **Chapter**: 5 - Evaluate the User Experience
 **Handbook**: The Platform Engineer's Handbook (Packt Publishing)
+
+---
+
+**Author:** Ajay Chankramath (ajay@platformetrics.com)
+**Book:** The Platform Engineer's Handbook (Packt Publishing)

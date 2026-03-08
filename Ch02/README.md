@@ -1346,3 +1346,8 @@ python test-cluster-health.py -v
 ## License
 
 All code in this chapter is provided as educational material for "The Platform Engineer's Handbook" published by Packt Publishing.
+
+---
+
+**Author:** Ajay Chankramath (ajay@platformetrics.com)
+**Book:** The Platform Engineer's Handbook (Packt Publishing)

@@ -1162,3 +1162,8 @@ After working through this chapter's examples:
 ## Summary
 
 This chapter equips platform engineers with the knowledge and tools to embed observability into their organizations' microservices architectures. Through standardized OpenTelemetry instrumentation, unified SPOG dashboards, and observability-driven deployment practices, teams can dramatically reduce MTTR, enable developer self-service, and make data-driven operational decisions. The code examples in this directory provide production-ready templates for implementing these patterns in your organization.
+
+---
+
+**Author:** Ajay Chankramath (ajay@platformetrics.com)
+**Book:** The Platform Engineer's Handbook (Packt Publishing)

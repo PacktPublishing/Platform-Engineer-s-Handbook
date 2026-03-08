@@ -750,3 +750,7 @@ Deploy Crossplane, create infrastructure blueprints, and provision a database fo
 - **Extension Activity:** Have students modify the GPU NodePool XRD to add resource quotas and affinity rules
 - **Real-World Scenario:** Challenge students to write a composition for Redis cluster (cache) following the PostgreSQL pattern
 
+---
+
+**Author:** Ajay Chankramath (ajay@platformetrics.com)
+**Book:** The Platform Engineer's Handbook (Packt Publishing)

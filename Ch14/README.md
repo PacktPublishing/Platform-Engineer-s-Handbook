@@ -374,4 +374,4 @@ Action request → Check allowlist → Check confidence threshold → Check rate
 
 ---
 
-**Author:** Ajay Chankramath
+**Author:** Ajay Chankramath (ajay@platformetrics.com)

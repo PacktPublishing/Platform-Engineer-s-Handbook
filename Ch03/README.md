@@ -789,3 +789,8 @@ kubectl run test-pod --image=curl:latest -it -- sh
 ## License
 
 Example code for educational purposes in "The Platform Engineer's Handbook" published by Packt Publishing.
+
+---
+
+**Author:** Ajay Chankramath (ajay@platformetrics.com)
+**Book:** The Platform Engineer's Handbook (Packt Publishing)

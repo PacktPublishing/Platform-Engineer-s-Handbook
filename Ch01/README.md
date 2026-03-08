@@ -684,3 +684,8 @@ For additional resources:
 - **Team Topologies**: Read "Team Topologies: Organizing Business and Technology Teams for Fast Flow" by Matthew Skelton and Manuel Pais
 - **Platform Engineering**: See "Continuous Delivery" by Jez Humble and David Farley for release workflow best practices
 - **Site Reliability Engineering**: Refer to "The Site Reliability Engineering Book" for observability and security patterns
+
+---
+
+**Author:** Ajay Chankramath (ajay@platformetrics.com)
+**Book:** The Platform Engineer's Handbook (Packt Publishing)

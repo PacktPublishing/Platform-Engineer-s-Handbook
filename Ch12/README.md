@@ -834,3 +834,8 @@ This directory contains all the code, configurations, and tools needed to implem
 6. **Monitor anomalies** to catch unexpected increases early
 
 For questions or issues, refer to the troubleshooting guide above, consult the companion website, or review the manuscript sections referenced in the "Code-to-Chapter Mapping" table.
+
+---
+
+**Author:** Ajay Chankramath (ajay@platformetrics.com)
+**Book:** The Platform Engineer's Handbook (Packt Publishing)

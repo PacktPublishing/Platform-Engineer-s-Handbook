@@ -853,7 +853,7 @@ kubectl logs -n chaos-mesh -l app=chaos-daemon
 ## License and Attribution
 
 Code examples from "The Platform Engineer's Handbook" (Packt Publishing)
-- Author: Ajay Chankramath
+- Author: Ajay Chankramath (ajay@platformetrics.com)
 - Updated: February 2026
 - License: [As specified in handbook]
 

@@ -403,3 +403,8 @@ Subsequent chapters may reference portal capabilities for discovery and integrat
 ## License
 
 These code examples are provided as part of "The Platform Engineer's Handbook" and are available under the book's license terms.
+
+---
+
+**Author:** Ajay Chankramath (ajay@platformetrics.com)
+**Book:** The Platform Engineer's Handbook (Packt Publishing)

@@ -344,3 +344,8 @@ sed -i 's/"8080:8080"/"8081:8080"/g' docker-compose.yml
 - **Nunjucks Templating**: https://mozilla.github.io/nunjucks/ (used by Backstage scaffolder)
 - **Renovate Docs**: https://docs.renovatebot.com/
 - **Docker Compose Reference**: https://docs.docker.com/compose/compose-file/
+
+---
+
+**Author:** Ajay Chankramath (ajay@platformetrics.com)
+**Book:** The Platform Engineer's Handbook (Packt Publishing)
