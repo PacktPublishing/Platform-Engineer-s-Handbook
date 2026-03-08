@@ -15,7 +15,7 @@
 #   peh-keycloak   -> Keycloak admin creds (used in Ch3)
 #   peh-db         -> PostgreSQL password (used in Ch9)
 #   peh-backstage  -> Backstage API token (used in Ch10)
-#   peh-openai     -> OpenAI API key (used in Ch14, optional)
+#   peh-anthropic  -> Anthropic Claude API key (used in Ch14, optional)
 # =============================================================================
 
 set -euo pipefail
@@ -119,10 +119,10 @@ read -rp "Backstage URL [http://localhost:7007]: " BS_URL
 BS_URL="${BS_URL:-http://localhost:7007}"
 read -rp "Backstage API token (or press Enter to skip): " BS_TOKEN
 
-# OpenAI (optional)
+# Anthropic Claude (optional)
 echo ""
-echo -e "${YELLOW}── OpenAI (used in Ch14, optional) ──${NC}"
-read -rp "OpenAI API key (sk-... or press Enter to skip): " OPENAI_KEY
+echo -e "${YELLOW}── Anthropic Claude (used in Ch14, optional) ──${NC}"
+read -rp "Anthropic API key (sk-ant-... or press Enter to skip): " ANTHROPIC_KEY
 
 # ── Create vault items ───────────────────────────────────────────────
 echo ""
@@ -150,11 +150,11 @@ else
     echo -e "${YELLOW}    (no API token yet — update later when Backstage is running)${NC}"
 fi
 
-# peh-openai
-if [ -n "$OPENAI_KEY" ]; then
-    create_item "peh-openai" "password=$OPENAI_KEY"
+# peh-anthropic
+if [ -n "$ANTHROPIC_KEY" ]; then
+    create_item "peh-anthropic" "password=$ANTHROPIC_KEY"
 else
-    echo -e "${YELLOW}  ⏭ peh-openai skipped (no key provided)${NC}"
+    echo -e "${YELLOW}  ⏭ peh-anthropic skipped (no key provided)${NC}"
 fi
 
 # ── Sync ─────────────────────────────────────────────────────────────
