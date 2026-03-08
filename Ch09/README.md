@@ -754,3 +754,4 @@ Deploy Crossplane, create infrastructure blueprints, and provision a database fo
 
 **Author:** Ajay Chankramath (ajay@platformetrics.com)
 **Book:** The Platform Engineer's Handbook (Packt Publishing)
+**Last Updated**: January 2026

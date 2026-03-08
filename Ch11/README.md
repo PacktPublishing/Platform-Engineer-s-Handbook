@@ -940,6 +940,6 @@ conftest test -p conftest-tests/policy.rego manifest.yaml    # Verbose policy ou
 
 ---
 
-**Chapter 11 - Validating Compliance with Policy-as-Code**
-The Platform Engineer's Handbook (Packt Publishing)
 **Author:** Ajay Chankramath (ajay@platformetrics.com)
+**Book:** The Platform Engineer's Handbook (Packt Publishing)
+**Last Updated**: January 2026

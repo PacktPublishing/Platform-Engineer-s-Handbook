@@ -794,3 +794,4 @@ Example code for educational purposes in "The Platform Engineer's Handbook" publ
 
 **Author:** Ajay Chankramath (ajay@platformetrics.com)
 **Book:** The Platform Engineer's Handbook (Packt Publishing)
+**Last Updated**: October 2025

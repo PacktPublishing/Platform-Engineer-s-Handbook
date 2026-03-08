@@ -375,3 +375,5 @@ Action request → Check allowlist → Check confidence threshold → Check rate
 ---
 
 **Author:** Ajay Chankramath (ajay@platformetrics.com)
+**Book:** The Platform Engineer's Handbook (Packt Publishing)
+**Last Updated**: March 2026

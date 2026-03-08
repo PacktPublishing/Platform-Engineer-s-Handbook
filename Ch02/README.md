@@ -1351,3 +1351,4 @@ All code in this chapter is provided as educational material for "The Platform E
 
 **Author:** Ajay Chankramath (ajay@platformetrics.com)
 **Book:** The Platform Engineer's Handbook (Packt Publishing)
+**Last Updated**: September 2025

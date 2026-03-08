@@ -854,7 +854,7 @@ kubectl logs -n chaos-mesh -l app=chaos-daemon
 
 Code examples from "The Platform Engineer's Handbook" (Packt Publishing)
 - Author: Ajay Chankramath (ajay@platformetrics.com)
-- Updated: February 2026
+- Last Updated: February 2026
 - License: [As specified in handbook]
 
 All tool configurations are compatible with open-source versions of Sloth, Velero, and Chaos Mesh.

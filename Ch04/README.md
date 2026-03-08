@@ -1167,3 +1167,4 @@ This chapter equips platform engineers with the knowledge and tools to embed obs
 
 **Author:** Ajay Chankramath (ajay@platformetrics.com)
 **Book:** The Platform Engineer's Handbook (Packt Publishing)
+**Last Updated**: November 2025

@@ -408,3 +408,4 @@ These code examples are provided as part of "The Platform Engineer's Handbook" a
 
 **Author:** Ajay Chankramath (ajay@platformetrics.com)
 **Book:** The Platform Engineer's Handbook (Packt Publishing)
+**Last Updated**: December 2025

@@ -969,11 +969,6 @@ These examples are provided as-is for educational purposes as part of The Platfo
 
 ---
 
-**Last Updated**: February 2025
-**Chapter**: 8 - CI/CD as a Platform Service
-**Edition**: Platform Engineer's Handbook (Packt)
-
----
-
 **Author:** Ajay Chankramath (ajay@platformetrics.com)
 **Book:** The Platform Engineer's Handbook (Packt Publishing)
+**Last Updated**: December 2025

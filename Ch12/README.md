@@ -839,3 +839,4 @@ For questions or issues, refer to the troubleshooting guide above, consult the c
 
 **Author:** Ajay Chankramath (ajay@platformetrics.com)
 **Book:** The Platform Engineer's Handbook (Packt Publishing)
+**Last Updated**: February 2026

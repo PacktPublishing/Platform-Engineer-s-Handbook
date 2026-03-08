@@ -349,3 +349,4 @@ sed -i 's/"8080:8080"/"8081:8080"/g' docker-compose.yml
 
 **Author:** Ajay Chankramath (ajay@platformetrics.com)
 **Book:** The Platform Engineer's Handbook (Packt Publishing)
+**Last Updated**: January 2026
