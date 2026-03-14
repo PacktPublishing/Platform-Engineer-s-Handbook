@@ -251,6 +251,38 @@ python3 test-observability.py TestOTELCollector
 
 ---
 
+#### `cve-scanner.py`
+**Maps to:** Section "Security observability — CVE scanning and vulnerability metrics"
+**Demonstrates:**
+- Container image scanning with Trivy
+- Exporting vulnerability counts per severity to Prometheus
+- Robust error handling for subprocess, timeout, and JSON parse failures
+- Iterating all Trivy `Results` targets (OS packages, language dependencies, etc.)
+- Structured metric labeling (`image`, `severity`) for Grafana Security dashboard
+
+**Key Functions:**
+- `scan_image_and_export_metrics(image_name)` — Runs `trivy image --format json` against the named image, parses every target in the `Results` array, and sets a `image_vulnerabilities_by_severity` Gauge for each severity level (CRITICAL, HIGH, MEDIUM, LOW). Errors (scan failure, timeout, bad JSON) are logged and the function returns early rather than raising, so a batch scan continues uninterrupted.
+
+**Prometheus Metric:**
+- `image_vulnerabilities_by_severity` — Gauge with labels `image` and `severity`; consumed by the Security persona dashboard and the `CVEDetected` alert rule in `alert-rules.yaml`
+
+**Usage:**
+```bash
+# Install dependencies
+pip install prometheus-client
+brew install trivy          # macOS; see https://trivy.dev for Linux/Windows
+
+# Run a scan (edit the images list in __main__ as needed)
+python cve-scanner.py
+```
+
+**Related Chapter Content:**
+- Pairs with the `CVEDetected` alert in `alert-rules.yaml` and the Security persona panel in `observability-personas.py`
+- Shows how platform teams surface supply-chain risk as a first-class observability signal
+- Demonstrates error-resilient subprocess integration as a pattern for external tool wrappers
+
+---
+
 ### Configuration Files
 
 #### `otel-collector-config.yaml`
