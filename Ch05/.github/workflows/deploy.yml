@@ -28,11 +28,27 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       # 2. Automated testing
+      # npm ci is used instead of npm install: it installs exactly what is
+      # in package-lock.json without modifying it, giving reproducible builds
+      # across all pipeline runs and matching the Dockerfile pattern.
       - name: Run Tests
         run: |
-          npm install
+          npm ci
           npm test
           npm run lint
+
+      # 2b. SAST — static analysis runs against source before any build or
+      # container step. npm audit checks for known vulnerable dependencies;
+      # CodeQL performs deeper semantic analysis on the application code.
+      # DAST (dynamic analysis against a running instance) runs as a separate
+      # post-deployment job in the staging environment, not here.
+      - name: Dependency vulnerability scan (SAST)
+        run: npm audit --audit-level=high
+
+      - name: CodeQL static analysis (SAST)
+        uses: github/codeql-action/analyze@v3
+        with:
+          languages: javascript
 
       # 3. Build application
       - name: Build Application

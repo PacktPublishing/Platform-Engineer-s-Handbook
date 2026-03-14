@@ -51,6 +51,27 @@ This section maps each code file to its corresponding section and concept in Cha
 
 ---
 
+#### **Dockerfile** (Listing 5.X — Multi-stage Node.js container build)
+**Chapter Section**: 5.3 - Deploying as a user
+**Concepts**: Multi-stage builds, production-only dependencies, non-root user, layer caching, health checks
+**Purpose**: Production-ready Dockerfile for the Node.js Express demo application (`app.js`). Key design decisions:
+- **Stage 1 (Builder)**: `node:24-alpine` with full `npm ci` — devDependencies are required by the build toolchain; omitting them at this stage would cause `npm run build` to fail
+- **Stage 2 (Production)**: Fresh `node:24-alpine` base with a clean `npm ci --omit=dev` — no build tools or devDependencies in the final image
+- Non-root user (`nodejs:1001`) created with Alpine `addgroup`/`adduser`
+- `--chown=nodejs:nodejs` on all `COPY` instructions from the builder
+- `HEALTHCHECK` directive wired to `healthcheck.js` for Kubernetes liveness/readiness probes
+
+**Build and run locally:**
+```bash
+docker build -t ch5-demo-app:latest .
+docker run -p 3000:3000 ch5-demo-app:latest
+curl http://localhost:3000/health
+```
+
+**Pipeline integration**: `.github/workflows/deploy.yml` builds and pushes this image automatically on every push to `main` or `develop`. Registry authentication is handled via `docker/login-action@v3` using `GITHUB_TOKEN`.
+
+---
+
 #### **demo-app/k8s-manifests.yaml** (Listing 5.5 - Zero-friction deployment concept)
 **Chapter Section**: 5.3 - Deploying as a user
 **Concepts**: Kubernetes Deployment, Service, HorizontalPodAutoscaler, PodDisruptionBudget, probes
