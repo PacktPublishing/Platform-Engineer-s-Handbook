@@ -1,0 +1,53 @@
+# helm/values.yaml — Chapter 5: Helm values for the demo application
+# ===================================================================
+# This file is the GitOps source of truth for the deployed image tag.
+# The CI/CD pipeline updates image.tag on every successful build and
+# pushes the change to Git; ArgoCD detects the diff and syncs the cluster.
+#
+# DO NOT set image.tag to "latest" — it breaks rollback and violates
+# the immutable deployment principle. The pipeline always sets this to
+# the git commit SHA.
+
+image:
+  repository: ghcr.io/company/platform-demo-app
+  # tag is updated automatically by .github/workflows/deploy.yml
+  # Format: git commit SHA (e.g. a3f8c1d)
+  tag: IMAGE_TAG_PLACEHOLDER
+  pullPolicy: Always
+
+replicaCount: 2
+
+service:
+  type: ClusterIP
+  port: 3000
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+ingress:
+  enabled: true
+  host: demo-app.platform.company.com
+
+observability:
+  otelEndpoint: http://otel-collector.monitoring:4317
+  metricsPort: 8080
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL

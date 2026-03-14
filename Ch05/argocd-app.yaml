@@ -1,0 +1,52 @@
+# argocd-app.yaml — Chapter 5: GitOps Application Registration
+# =============================================================
+# Registers the demo application with ArgoCD for declarative,
+# Git-driven continuous deployment.
+#
+# The CI/CD pipeline (.github/workflows/deploy.yml) never touches the
+# cluster directly. Instead, it updates helm/values.yaml with the new
+# image tag and pushes the change to Git. ArgoCD detects the diff and
+# reconciles the cluster automatically.
+#
+# Apply once to bootstrap:
+#   kubectl apply -f argocd-app.yaml -n argocd
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: developer-app
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/company/app-deployments
+    targetRevision: HEAD
+    path: environments/production
+
+    # Helm values files are layered: shared defaults first, then
+    # environment-specific overrides. The pipeline updates values.yaml
+    # (the environment-specific file) with the new image.tag on each deploy.
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-prod.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: production
+
+  syncPolicy:
+    automated:
+      prune: true       # remove resources deleted from Git
+      selfHeal: true    # revert any manual cluster mutations
+      allowEmpty: false # prevent accidental full deletions
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

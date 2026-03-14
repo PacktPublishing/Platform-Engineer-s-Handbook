@@ -73,20 +73,20 @@ jobs:
           docker build -t $REGISTRY/$IMAGE_NAME:${{ github.sha }} .
           docker push $REGISTRY/$IMAGE_NAME:${{ github.sha }}
 
-      # 6. Update Kubernetes manifest in Git (GitOps pattern)
-      # We never touch the cluster directly. Instead, we update the image
-      # tag in the deployment manifest and push the change back to Git.
-      # ArgoCD detects the diff and applies it to the cluster automatically,
-      # keeping Git as the single source of truth (see Chapter 2).
+      # 6. Update Helm values in Git (GitOps pattern)
+      # We never touch the cluster directly. The pipeline updates image.tag
+      # in helm/values.yaml and pushes the change to Git. ArgoCD detects
+      # the diff via its sync policy and reconciles the cluster automatically.
+      # Updating values.yaml (not the raw deployment manifest) keeps the
+      # approach consistent with how ArgoCD is configured in argocd-app.yaml,
+      # which uses Helm valueFiles as its source of truth.
       # [skip ci] prevents this commit from re-triggering the pipeline.
-      - name: Update Kubernetes manifest
+      - name: Update Helm values with new image tag
         run: |
           NAMESPACE=${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
-          yq e -i \
-            ".spec.template.spec.containers[0].image = \"$REGISTRY/$IMAGE_NAME:${{ github.sha }}\"" \
-            k8s/deployment.yaml
+          yq e -i ".image.tag = \"${{ github.sha }}\"" helm/values.yaml
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add k8s/deployment.yaml
-          git commit -m "chore: update image to ${{ github.sha }} [$NAMESPACE] [skip ci]"
+          git add helm/values.yaml
+          git commit -m "chore: update image.tag to ${{ github.sha }} [$NAMESPACE] [skip ci]"
           git push

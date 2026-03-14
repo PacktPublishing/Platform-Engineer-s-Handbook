@@ -51,6 +51,28 @@ This section maps each code file to its corresponding section and concept in Cha
 
 ---
 
+#### **argocd-app.yaml** (Listing 5.X — GitOps application registration)
+**Chapter Section**: 5.3 - Deploying as a user
+**Concepts**: GitOps, ArgoCD Application CRD, automated sync, self-heal, Helm integration
+**Purpose**: Registers the demo application with ArgoCD for declarative Git-driven deployment. Key design decisions:
+- Uses `helm.valueFiles` so ArgoCD reads `helm/values.yaml` (updated by the pipeline) as its image tag source — consistent with the CI/CD pipeline approach in `.github/workflows/deploy.yml`
+- `automated.selfHeal: true` reverts any manual cluster mutations, enforcing Git as the only source of truth
+- `automated.prune: true` removes resources deleted from Git, preventing stale deployments
+
+**Apply once to bootstrap:**
+```bash
+kubectl apply -f argocd-app.yaml -n argocd
+```
+
+---
+
+#### **helm/values.yaml** (Listing 5.X — Helm values as GitOps source of truth)
+**Chapter Section**: 5.3 - Deploying as a user
+**Concepts**: Helm values, immutable image tags, GitOps update pattern
+**Purpose**: The single file the CI/CD pipeline modifies on every successful build. The pipeline runs `yq e -i ".image.tag = \"<sha>\"" helm/values.yaml`, commits, and pushes; ArgoCD detects the diff and syncs. Never set `image.tag` to `latest` — the pipeline always uses the git commit SHA for immutable, traceable deployments.
+
+---
+
 #### **Dockerfile** (Listing 5.X — Multi-stage Node.js container build)
 **Chapter Section**: 5.3 - Deploying as a user
 **Concepts**: Multi-stage builds, production-only dependencies, non-root user, layer caching, health checks
