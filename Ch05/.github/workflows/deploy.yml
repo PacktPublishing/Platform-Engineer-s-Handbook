@@ -1,0 +1,76 @@
+// .github/workflows/deploy.yml
+name: Complete Developer Deployment Experience
+
+# Triggers: push to main/develop runs the full pipeline.
+# Pull requests against main run tests only (no deploy).
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Code checkout
+      # v6 required — v3 is deprecated (uses Node 16, end-of-life).
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          # Fetch full history so the GitOps commit step can push back.
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # 2. Automated testing
+      - name: Run Tests
+        run: |
+          npm install
+          npm test
+          npm run lint
+
+      # 3. Build application
+      - name: Build Application
+        run: |
+          npm run build
+          echo "Build completed at $(date)"
+
+      # 4. Authenticate to container registry
+      # Must happen before docker build/push — unauthenticated pushes to
+      # ghcr.io will fail with 401. GITHUB_TOKEN is automatically scoped
+      # to the current repo and requires no additional secret configuration.
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 5. Container build and push
+      - name: Build and Push Container
+        run: |
+          docker build -t $REGISTRY/$IMAGE_NAME:${{ github.sha }} .
+          docker push $REGISTRY/$IMAGE_NAME:${{ github.sha }}
+
+      # 6. Update Kubernetes manifest in Git (GitOps pattern)
+      # We never touch the cluster directly. Instead, we update the image
+      # tag in the deployment manifest and push the change back to Git.
+      # ArgoCD detects the diff and applies it to the cluster automatically,
+      # keeping Git as the single source of truth (see Chapter 2).
+      # [skip ci] prevents this commit from re-triggering the pipeline.
+      - name: Update Kubernetes manifest
+        run: |
+          NAMESPACE=${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+          yq e -i \
+            ".spec.template.spec.containers[0].image = \"$REGISTRY/$IMAGE_NAME:${{ github.sha }}\"" \
+            k8s/deployment.yaml
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add k8s/deployment.yaml
+          git commit -m "chore: update image to ${{ github.sha }} [$NAMESPACE] [skip ci]"
+          git push
