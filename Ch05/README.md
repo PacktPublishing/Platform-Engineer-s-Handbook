@@ -51,6 +51,23 @@ This section maps each code file to its corresponding section and concept in Cha
 
 ---
 
+#### **otel-deployment.yaml** (Listing 5.X — OTEL-instrumented Kubernetes Deployment)
+**Chapter Section**: 5.4 - Application instrumentation for observability
+**Concepts**: OTEL env-var wiring, immutable image tags, NODE_OPTIONS preload, security context
+**Purpose**: Kubernetes Deployment manifest that connects the Node.js demo app to the platform OTEL Collector. Key design decisions:
+- `image` tag is always the git commit SHA injected by the pipeline — never `:latest`
+- `NODE_OPTIONS: "--require ./instrumentation.js"` preloads the SDK before any application module, so auto-instrumentation captures all HTTP and Express traffic from the first request
+- `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` point to the Collector DaemonSet deployed in the `observability` namespace (Chapter 4)
+- Security context matches `Dockerfile`: non-root user (1001), read-only root filesystem, all capabilities dropped
+- Prometheus scrape annotations enable pull-based metrics collection alongside OTLP push
+
+**Apply:**
+```bash
+kubectl apply -f otel-deployment.yaml -n demo
+```
+
+---
+
 #### **argocd-app.yaml** (Listing 5.X — GitOps application registration)
 **Chapter Section**: 5.3 - Deploying as a user
 **Concepts**: GitOps, ArgoCD Application CRD, automated sync, self-heal, Helm integration

@@ -1,0 +1,97 @@
+# otel-deployment.yaml — Chapter 5: Application Instrumentation for Observability
+# ==================================================================================
+# Kubernetes Deployment that wires the Node.js demo application to the platform's
+# OTEL Collector, enabling automatic capture of HTTP requests, database calls,
+# and custom business events from Section 5.4.
+#
+# The image tag is set by the CI/CD pipeline to the git commit SHA on every build.
+# Never use :latest — it prevents rollback and breaks immutable deployments.
+# See helm/values.yaml for the GitOps-managed image.tag field.
+#
+# Apply:
+#   kubectl apply -f otel-deployment.yaml -n demo
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-app
+  labels:
+    app.kubernetes.io/name: demo-app
+    app.kubernetes.io/component: api
+    app.kubernetes.io/managed-by: argocd
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: demo-app
+  template:
+    metadata:
+      labels:
+        app: demo-app
+      annotations:
+        # Prometheus scrape annotations — collector uses these for pull-based metrics
+        prometheus.io/scrape: "true"
+        prometheus.io/port:   "8080"
+        prometheus.io/path:   "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser:    1001
+        fsGroup:      1001
+      containers:
+        - name:  app
+          # Tag is injected by .github/workflows/deploy.yml as the git commit SHA.
+          # IMAGE_TAG_PLACEHOLDER is replaced by yq in the pipeline before ArgoCD syncs.
+          image:           ghcr.io/company/demo-app:IMAGE_TAG_PLACEHOLDER
+          imagePullPolicy: Always
+          ports:
+            - name:          http
+              containerPort: 8080
+              protocol:      TCP
+          env:
+            - name:  OTEL_SERVICE_NAME
+              value: "demo-app"
+            # OTLP HTTP endpoint — port 4318, path /v1/traces.
+            # The collector DaemonSet is deployed in the observability namespace (Ch4).
+            - name:  OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector.observability:4318"
+            # Separate metrics endpoint; required when metricReader uses a different
+            # URL from the trace exporter (see instrumentation.js).
+            - name:  OTEL_EXPORTER_OTLP_METRICS_ENDPOINT
+              value: "http://otel-collector.observability:4318/v1/metrics"
+            - name:  NODE_ENV
+              value: "production"
+            # --require loads instrumentation.js before any application module,
+            # ensuring the NodeSDK is started before Express or any library.
+            - name:  NODE_OPTIONS
+              value: "--require ./instrumentation.js"
+          resources:
+            requests:
+              cpu:    100m
+              memory: 128Mi
+            limits:
+              cpu:    500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem:   true
+            capabilities:
+              drop: [ALL]
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds:       15
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds:       10
+          volumeMounts:
+            - name:      tmp
+              mountPath: /tmp
+      volumes:
+        - name:    tmp
+          emptyDir: {}
