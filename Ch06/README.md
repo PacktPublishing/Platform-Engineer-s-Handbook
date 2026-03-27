@@ -27,18 +27,23 @@ This directory contains all code listings and configuration examples referenced 
 
 | File | Chapter Section | Purpose |
 |------|-----------------|---------|
-| `app-config.yaml` | 6.2 Role-based navigation | Base Backstage configuration template |
-| `app-config.production.yaml` | 6.2 Role-based navigation | Production Backstage config with Keycloak SSO, GitHub discovery, and proxy settings |
+| `app-config.yaml` | 6.2 Role-based navigation | Base Backstage configuration with OIDC auth provider, session config, and PagerDuty proxy |
+| `app-config.production.yaml` | 6.2 Role-based navigation | Production overrides: S3 TechDocs storage, Elasticsearch search, environment variable references |
 | `backstage-helm-values.yaml` | 6.1 Backstage Architecture | Kubernetes Helm chart values for production Backstage deployment with PostgreSQL |
-| `catalog-info.yaml` | 6.3 Service catalog examples | Backstage catalog entity definitions (Component, API, Resource, User, Group, System, Domain) |
+| `catalog-info.yaml` | 6.3 Service catalog examples | Catalog entity definitions for `demo-app` (Component, API, Resource, User, Group, System, Domain) with PagerDuty, ArgoCD, Prometheus, and Grafana annotations |
 | `api-spec.yaml` | 6.3 Service catalog examples | OpenAPI 3.0 specification for demo-app API registration |
+| `keycloak-oidc-module.ts` | 6.2 SSO integration | TypeScript backend module that registers the Keycloak OIDC auth provider using `createBackendModule` and `authProvidersExtensionPoint` |
+| `custom-homepage.tsx` | 6.5 Portal customisation | Backstage homepage built with `PageBlueprint.make()` (replaces deprecated `createPageExtension`); includes `KubernetesStatusCard` and `ServiceHealthCard` widgets |
+| `templates/onboard-service/template.yaml` | 6.4 Golden Path / Scaffolder | Backstage Scaffolder template for onboarding new services; includes `output.links` block that surfaces the PR URL after execution |
+| `create-backstage-plugin.py` | 6.5 Portal customisation | Helper script for scaffolding a new custom Backstage plugin directory with boilerplate |
 | `register-catalog-entities.py` | 6.4 Publishing deployed services | Script to discover and register catalog entities from GitHub into Backstage |
 | `test-portal-health.py` | Validation & health checks | Unit tests for portal configuration and setup |
+| `load-secrets.sh` | Secrets management (cross-chapter) | Loads `GITHUB_TOKEN` from Bitwarden vault; requires `bw-helper.sh` from Ch1. For local testing, export env vars manually instead. |
 
 ### Orphan Files
 
 The following files in the code directory are **not directly referenced** in Chapter 6 content:
-- `__pycache__/` directory - Python bytecode cache (auto-generated, can be safely ignored)
+- `__pycache__/` directory — Python bytecode cache (auto-generated, can be safely ignored)
 
 ## Prerequisites
 
@@ -74,7 +79,7 @@ helm install backstage backstage/backstage --namespace backstage --create-namesp
 
 2. **Keycloak**: Identity and Access Management
    - Version: 20+
-   - OAuth 2.0 provider for SSO
+   - Configured as an OIDC provider; Backstage uses the generic `oidc` auth provider pointed at Keycloak's realm discovery URL (`/realms/{realm}/.well-known/openid-configuration`)
    - Integration with GitHub for user sync
    - Pre-requisite: Completed Chapter 3 (Identity Management)
 
@@ -126,7 +131,7 @@ For production Backstage deployment:
 │  │  (api-spec.yaml) │  │ (Golden Paths)           │ │
 │  └──────────────────┘  └──────────────────────────┘ │
 ├─────────────────────────────────────────────────────┤
-│  Auth: Keycloak/OAuth  |  Backend: PostgreSQL        │
+│  Auth: Keycloak (OIDC) |  Backend: PostgreSQL        │
 ├─────────────────────────────────────────────────────┤
 │  Integrations: GitHub, ArgoCD, Kubernetes           │
 └─────────────────────────────────────────────────────┘
@@ -284,9 +289,9 @@ http://localhost:7007
 
 After importing entities, explore how Backstage connects services, APIs, teams, and infrastructure:
 
-1. **Component detail page**: Click on `api-gateway` in the Catalog. The Overview tab shows ownership (`platform-team`) and system (`platform-services`). The Relations tab shows the dependency graph — `api-gateway` provides `gateway-api` and depends on `postgres-primary`.
+1. **Component detail page**: Click on `demo-app` in the Catalog. The Overview tab shows ownership (`platform-team`) and system (`platform-services`). The Relations tab shows the dependency graph — `demo-app` provides `demo-app-api` and has annotations linking it to PagerDuty, ArgoCD, Prometheus, and Grafana.
 
-2. **API definition**: Click on `gateway-api` to see the API entity. The Definition tab renders the OpenAPI spec defined in `catalog-info.yaml`.
+2. **API definition**: Click on `demo-app-api` to see the API entity. The Definition tab renders the OpenAPI spec defined in `api-spec.yaml`.
 
 3. **Team ownership**: Click on `platform-team` (the Group entity) to see all components owned by the team.
 
@@ -408,4 +413,4 @@ These code examples are provided as part of "The Platform Engineer's Handbook" a
 
 **Author:** Ajay Chankramath (ajay@platformetrics.com)
 **Book:** The Platform Engineer's Handbook (Packt Publishing)
-**Last Updated**: December 2025
+**Last Updated**: March 2026

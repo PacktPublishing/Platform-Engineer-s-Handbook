@@ -49,6 +49,8 @@ By implementing these patterns, teams can:
 | **permission-delegation.py** | Permission delegation module | Enable self-service team management | Hierarchical permissions, role-based access, delegation validation |
 | **project-bootstrapper.py** | Project initialization automation | Bootstrapping new projects | Template libraries by archetype, language variants, atomic provisioning |
 | **audit-logger.py** | Audit logging module | Observability & compliance | Structured event logging, query interface, statistics |
+| **keycloak-groups.py** | Keycloak group provisioning | SSO integration for teams | Calls Keycloak Admin REST API to create `team-{name}-admins/developers/viewers` groups, assigns members, and ensures idempotency (group already exists = no-op) |
+| **templates/backstage-template.yaml** | Backstage Scaffolder template for team onboarding | Developer portal integration (Ch6 + Ch7) | Uses `parameters.org` (replaces hardcoded org name); includes `output.links` block that surfaces the created repo URL and catalog entry URL after execution |
 
 ### Testing & Validation
 
@@ -642,16 +644,20 @@ def _generate_backstage_catalog(self, name: str, team: str, description: str) ->
 ```
 
 ### Integration with Keycloak
-Extend `onboarding-api.py` to automatically create Keycloak groups:
 
-```python
-def create_keycloak_groups(team_id: str, members: List[str]):
-    """Create Keycloak groups for team members."""
-    # Call Keycloak API to create:
-    # - team-{team_id}-admins
-    # - team-{team_id}-developers
-    # - team-{team_id}-viewers
+`keycloak-groups.py` provides a complete Keycloak Admin REST API integration. It authenticates with a `client_credentials` grant, then idempotently creates and populates three groups per team:
+
+```bash
+python3 keycloak-groups.py \
+  --keycloak-url https://keycloak.example.com \
+  --realm platform \
+  --client-id onboarding-api \
+  --client-secret $KEYCLOAK_CLIENT_SECRET \
+  --team platform-team \
+  --members alice@example.com,bob@example.com
 ```
+
+The script calls `provision_team_groups(team_id, member_emails)` which handles `get_admin_token()`, `create_group()` (no-op if group already exists), and `add_user_to_group()` for each member. Wire this into `onboarding-api.py` after the namespace provisioning step so Keycloak group membership mirrors Kubernetes RBAC automatically.
 
 ### Webhook Notifications
 Add webhooks to notify Slack, email, or other systems:
@@ -796,4 +802,4 @@ These examples are provided as part of "The Platform Engineer's Handbook" by Pac
 
 **Author:** Ajay Chankramath (ajay@platformetrics.com)
 **Book:** The Platform Engineer's Handbook (Packt Publishing)
-**Last Updated**: December 2025
+**Last Updated**: March 2026
