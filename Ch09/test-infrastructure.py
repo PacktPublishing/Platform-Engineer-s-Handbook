@@ -67,6 +67,9 @@ def verify_app_connectivity(namespace: str) -> bool:
     if code != 0:
         return False
 
+    # NOTE: This check assumes the demo app's /health endpoint returns
+    # JSON or text containing both "database" and "connected" strings.
+    # Update these strings to match your actual demo app's health check response schema.
     return "database" in stdout.lower() and "connected" in stdout.lower()
 
 

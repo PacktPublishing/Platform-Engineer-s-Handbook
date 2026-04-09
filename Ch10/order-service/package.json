@@ -1,7 +1,7 @@
 {
-  "name": "${{ values.serviceName }}",
+  "name": "order-service",
   "version": "0.1.0",
-  "description": "${{ values.description }}",
+  "description": "order-service service",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -9,13 +9,13 @@
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint 'src/**/*.ts'",
-    "lint:fix": "eslint 'src/**/*.ts' --fix",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
     "format": "prettier --write src/",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "express": "^5.0.0",
+    "express": "^4.18.2",
     "pino": "^8.16.0",
     "pino-http": "^8.5.0",
     "@opentelemetry/api": "^1.6.0",
@@ -27,18 +27,17 @@
     "@types/node": "^20.9.0",
     "typescript": "^5.2.2",
     "tsx": "^4.1.1",
-    "vitest": "^2.0.0",
-    "eslint": "^9.0.0",
-    "typescript-eslint": "^8.0.0",
+    "vitest": "^0.34.6",
+    "eslint": "^8.53.0",
     "prettier": "^3.1.0"
   },
   "engines": {
     "node": ">=20.0.0"
   },
   "platformMetadata": {
-    "team": "${{ values.team }}",
+    "team": "team-alpha",
     "templateName": "backend-service",
-    "templateVersion": "${{ values.templateVersion }}",
-    "generatedAt": "${{ values.year }}"
+    "templateVersion": "1.0.0",
+    "generatedAt": "2025"
   }
 }

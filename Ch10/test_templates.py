@@ -193,11 +193,18 @@ class TestTemplateGeneration:
         )
 
         try:
-            # Wait for startup
-            time.sleep(5)
+            # Wait for service to become healthy with retry loop
+            response = None
+            for attempt in range(10):
+                try:
+                    response = requests.get("http://localhost:8080/health", timeout=2)
+                    if response.status_code == 200:
+                        break
+                except requests.ConnectionError:
+                    time.sleep(1)
+            else:
+                raise AssertionError("Service did not become healthy after 10 retries")
 
-            # Check health endpoint
-            response = requests.get("http://localhost:8080/health", timeout=5)
             assert response.status_code == 200, f"Health check failed: {response.status_code}"
         finally:
             proc.terminate()

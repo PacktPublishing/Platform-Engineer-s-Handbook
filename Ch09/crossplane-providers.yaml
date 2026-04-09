@@ -1,5 +1,5 @@
 # crossplane-providers.yaml
-# Provider configurations for Crossplane
+# Provider configurations for Crossplane v2
 # Uses the Kubernetes provider and Helm provider for local Kind clusters
 # No cloud provider dependencies — everything runs locally
 
@@ -11,6 +11,28 @@ metadata:
   name: provider-kubernetes
 spec:
   package: xpkg.upbound.io/crossplane-contrib/provider-kubernetes:v0.13.0
+---
+# DeploymentRuntimeConfig for Kubernetes provider (v2 syntax)
+apiVersion: pkg.crossplane.io/v1beta1
+kind: DeploymentRuntimeConfig
+metadata:
+  name: provider-kubernetes-runtime
+spec:
+  deploymentTemplate:
+    spec:
+      selector: {}
+      template:
+        metadata: {}
+        spec:
+          containers:
+          - name: package-runtime
+            resources:
+              limits:
+                cpu: 100m
+                memory: 128Mi
+              requests:
+                cpu: 100m
+                memory: 128Mi
 ---
 apiVersion: kubernetes.crossplane.io/v1alpha1
 kind: ProviderConfig
@@ -36,6 +58,28 @@ metadata:
   name: provider-helm
 spec:
   package: xpkg.upbound.io/crossplane-contrib/provider-helm:v0.18.1
+---
+# DeploymentRuntimeConfig for Helm provider (v2 syntax)
+apiVersion: pkg.crossplane.io/v1beta1
+kind: DeploymentRuntimeConfig
+metadata:
+  name: provider-helm-runtime
+spec:
+  deploymentTemplate:
+    spec:
+      selector: {}
+      template:
+        metadata: {}
+        spec:
+          containers:
+          - name: package-runtime
+            resources:
+              limits:
+                cpu: 100m
+                memory: 128Mi
+              requests:
+                cpu: 100m
+                memory: 128Mi
 ---
 apiVersion: helm.crossplane.io/v1beta1
 kind: ProviderConfig

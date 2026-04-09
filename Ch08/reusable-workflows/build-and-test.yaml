@@ -76,7 +76,7 @@ jobs:
 
       - name: Set up Node.js
         if: inputs.language == 'node'
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.language-version }}
           cache: 'npm'
@@ -154,7 +154,7 @@ jobs:
       # 7. Upload test results
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: test-results
           path: |
@@ -173,7 +173,7 @@ jobs:
       # 9. Upload build artifacts
       - name: Upload artifacts
         id: upload
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.artifact-name }}
           path: ${{ inputs.artifact-path }}

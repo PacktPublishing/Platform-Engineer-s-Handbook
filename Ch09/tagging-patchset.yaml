@@ -1,15 +1,19 @@
 # tagging-patchset.yaml
-# Reusable patchset that enforces mandatory governance tags on all composed resources
+# Reusable patchSets snippet for embedding in a Crossplane v2 Composition
 #
-# This patchset applies standard organizational tags/labels to resources created through
-# Crossplane compositions. It enables governance by ensuring all resources carry metadata
-# for owner identification, environment classification, cost allocation, and compliance tracking.
+# IMPORTANT: This file is NOT a standalone Kubernetes resource — it has no apiVersion or kind
+# and cannot be applied with `kubectl apply`. In Crossplane v2's pipeline mode, patchSets
+# are defined inside the function-patch-and-transform Function input within a Composition.
 #
-# Usage: Reference this patchset by name in your composition resources to apply these
-# governance tags automatically. Example:
+# To use these patchSets, embed the content under:
+#   spec.pipeline[].input.patchSets   (inside a Composition's pipeline step)
+#
+# Example reference in a pipeline resource:
 #   patches:
 #     - type: PatchSet
 #       patchSetName: required-tags
+#
+# See composition-postgresql.yaml for a complete working example of pipeline mode usage.
 
 patchSets:
   - name: required-tags

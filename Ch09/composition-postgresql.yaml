@@ -6,6 +6,24 @@
 # This uses the Crossplane v2 Composition pipeline mode with the
 # function-patch-and-transform function, which replaces the legacy
 # inline resources/patchSets syntax.
+#
+# CONNECTION SECRETS IN CROSSPLANE v2
+# ------------------------------------
+# In Crossplane v1, individual composed resources each wrote their own Secret via
+# writeConnectionSecretToRef. In v2 this field is removed from composed resources.
+# Instead, the composition pipeline defines connectionDetails on each resource:
+#
+#   resource A → connectionDetails: [endpoint, port]  ─┐
+#   resource B → connectionDetails: [username, password] ─┼─► function collects all
+#                                                         │    and merges into one
+#                                                         ▼
+#                               Composite Resource (XR) connection secret
+#                                                         │
+#                                                         ▼
+#                               Claim publishConnectionDetailsTo target
+#
+# The claim (demo-app-database.yaml) declares publishConnectionDetailsTo: to say
+# where the merged secret should land. No composed resource writes a secret directly.
 
 apiVersion: apiextensions.crossplane.io/v1
 kind: Composition
@@ -18,7 +36,8 @@ spec:
   compositeTypeRef:
     apiVersion: database.platform.io/v1alpha1
     kind: PostgreSQLInstance
-  writeConnectionSecretsToNamespace: crossplane-system
+  # Crossplane v2: writeConnectionSecretsToNamespace removed from Compositions.
+  # Connection details are published via publishConnectionDetailsTo on the XR/Claim.
   mode: Pipeline
   pipeline:
     - step: patch-and-transform
@@ -44,6 +63,14 @@ spec:
                       development: "256Mi"
                       staging: "512Mi"
                       production: "1Gi"
+          - name: region-settings
+            patches:
+              # For cloud provider compositions (e.g. provider-aws), patch region to
+              # spec.forProvider.region. For the Kubernetes provider used in this local
+              # Kind cluster example, we propagate region as a label instead.
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.parameters.region
+                toFieldPath: metadata.labels["platform.io/region"]
         resources:
           # Namespace for the database
           - name: db-namespace
@@ -60,6 +87,38 @@ spec:
             patches:
               - type: PatchSet
                 patchSetName: common-labels
+
+          # Credentials secret — created by the composition so connection details
+          # can be surfaced via connectionDetails below (v2 pattern).
+          # In production, replace this with an ExternalSecret from your secrets manager.
+          - name: db-secret
+            base:
+              apiVersion: kubernetes.crossplane.io/v1alpha2
+              kind: Object
+              spec:
+                forProvider:
+                  manifest:
+                    apiVersion: v1
+                    kind: Secret
+                    metadata:
+                      name: db-credentials
+                      namespace: databases
+                    type: Opaque
+                    stringData:
+                      username: platform
+                      # In production use ExternalSecrets or a secrets manager.
+                      # This static value is used for the local Kind demo only.
+                      password: change-me-in-production
+            # connectionDetails: v2 pattern — the function collects these values from
+            # this resource and merges them into the single XR-level connection secret.
+            # No writeConnectionSecretToRef is used anywhere.
+            connectionDetails:
+              - name: username
+                type: FromValue
+                value: platform
+              - name: password
+                type: FromValue
+                value: change-me-in-production
 
           # PersistentVolumeClaim for PostgreSQL data
           - name: db-pvc
@@ -151,6 +210,8 @@ spec:
                 patchSetName: common-labels
               - type: PatchSet
                 patchSetName: tier-settings
+              - type: PatchSet
+                patchSetName: region-settings
               - type: FromCompositeFieldPath
                 fromFieldPath: spec.parameters.version
                 toFieldPath: spec.forProvider.manifest.spec.template.spec.containers[0].image
@@ -160,7 +221,10 @@ spec:
                       type: Format
                       fmt: "postgres:%s-alpine"
 
-          # Service to expose PostgreSQL
+          # Service to expose PostgreSQL — also publishes the network connection details.
+          # endpoint and port are collected here; username and password come from db-secret above.
+          # The function merges all four into the single secret written to the Claim's
+          # publishConnectionDetailsTo target.
           - name: db-service
             base:
               apiVersion: kubernetes.crossplane.io/v1alpha2
@@ -183,6 +247,8 @@ spec:
                           protocol: TCP
                       selector:
                         app: postgresql
+            # connectionDetails: the function collects endpoint + port here and merges them
+            # with username + password from db-secret. The result is one unified secret.
             connectionDetails:
               - name: endpoint
                 type: FromValue
@@ -190,6 +256,3 @@ spec:
               - name: port
                 type: FromValue
                 value: "5432"
-              - name: username
-                type: FromValue
-                value: platform

@@ -17,5 +17,10 @@ spec:
     version: "15"
     tier: development
     enableBackups: true
-  writeConnectionSecretToRef:
+  # Crossplane v2: writeConnectionSecretToRef was removed from Claims.
+  # Use publishConnectionDetailsTo to write connection details to a Secret.
+  publishConnectionDetailsTo:
     name: demo-app-db-connection
+    metadata:
+      labels:
+        platform.io/team: team-alpha

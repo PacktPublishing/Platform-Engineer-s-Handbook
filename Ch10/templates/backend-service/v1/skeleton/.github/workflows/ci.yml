@@ -10,7 +10,7 @@ jobs:
     with:
       service-name: ${{ values.serviceName }}
       node-version: "20"
-      deploy-environment: ${{ github.ref == 'refs/heads/main' && 'staging' || 'preview' }}
+      deploy-environment: {% raw %}${{ github.ref == 'refs/heads/main' && 'staging' || 'preview' }}{% endraw %}
     secrets:
-      registry-token: ${{ secrets.GHCR_TOKEN }}
-      kubeconfig: ${{ secrets.KUBECONFIG }}
+      registry-token: {% raw %}${{ secrets.GHCR_TOKEN }}{% endraw %}
+      kubeconfig: {% raw %}${{ secrets.KUBECONFIG }}{% endraw %}

@@ -57,6 +57,14 @@ spec:
           type: number
           description: Service port
           default: 8080
+        year:
+          title: Year
+          type: string
+          # Hidden from the scaffolder form — defaults to the current year.
+          # Note: Backstage Nunjucks does not include a built-in `now` filter.
+          # Use a hidden parameter with a default instead of ${{ '' | now | date('YYYY') }}.
+          default: "2025"
+          ui:widget: hidden
     - title: Repository
       required:
         - repoUrl
@@ -80,7 +88,7 @@ spec:
           description: ${{ parameters.description }}
           database: ${{ parameters.database }}
           port: ${{ parameters.port }}
-          year: ${{ '' | now | date('YYYY') }}
+          year: ${{ parameters.year }}
           templateVersion: "1.0.0"
 
     - id: fetch-database

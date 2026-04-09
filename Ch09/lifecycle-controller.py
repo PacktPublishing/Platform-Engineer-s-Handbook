@@ -7,7 +7,6 @@ This controller watches Crossplane claims and enforces organizational policies:
 - Automatic cleanup scheduling for development resources
 """
 
-import asyncio
 from datetime import datetime
 from dataclasses import dataclass
 from typing import Optional
@@ -53,7 +52,7 @@ class LifecycleController:
 
         return violations
 
-    async def run(self):
+    def run(self):
         for event in watch.Watch().stream(
             self.api.list_cluster_custom_object,
             group="database.platform.io", version="v1alpha1", plural="postgresqlclaims"
@@ -66,4 +65,4 @@ class LifecycleController:
 
 
 if __name__ == "__main__":
-    asyncio.run(LifecycleController().run())
+    LifecycleController().run()

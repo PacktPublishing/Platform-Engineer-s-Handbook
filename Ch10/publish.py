@@ -26,12 +26,12 @@ BACKSTAGE_NS = os.environ.get("BACKSTAGE_NS", "backstage")
 
 # GitHub repository where templates live.
 # Format: owner/repo  (e.g. "achankra/peh")
-GITHUB_REPO = os.environ.get("GITHUB_REPO", "achankra/peh")
+GITHUB_REPO = os.environ.get("GITHUB_REPO", "platform-org/starter-kits")
 GITHUB_BRANCH = os.environ.get("GITHUB_BRANCH", "main")
 
 # Path prefix from repo root to the chapter's code directory.
 # If templates/ is at Ch10/templates/ in the repo, set this to "Ch10".
-REPO_PREFIX = os.environ.get("REPO_PREFIX", "Ch10")
+REPO_PREFIX = os.environ.get("REPO_PREFIX", "")
 
 
 def kubectl(*args, **kwargs):
@@ -195,10 +195,16 @@ class TemplatePublisher:
     # ── publishing ──────────────────────────────────────────────
 
     def _github_url(self, template: TemplateMetadata) -> str:
-        """Build the GitHub URL for a template."""
+        """Build the GitHub URL for a template.
+
+        Uses environment variables GITHUB_REPO, GITHUB_BRANCH, and REPO_PREFIX
+        to construct the template location URL. This allows templates to be
+        published from different repositories and branches.
+        """
+        prefix_part = f"{REPO_PREFIX}/" if REPO_PREFIX else ""
         return (
             f"https://github.com/{GITHUB_REPO}/blob/{GITHUB_BRANCH}/"
-            f"{REPO_PREFIX}/templates/"
+            f"{prefix_part}templates/"
             f"{template.name}/{template.version}/template.yaml"
         )
 

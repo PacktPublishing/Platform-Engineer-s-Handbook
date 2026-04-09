@@ -89,7 +89,7 @@ jobs:
       # Container Image Scanning with Trivy
       - name: Run Trivy container scan
         if: inputs.scan-container && inputs.container-image != ''
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.20.0
         with:
           image-ref: ${{ inputs.container-image }}
           format: 'json'
@@ -142,12 +142,12 @@ EOFPYTHON
 
       # Code scanning with CodeQL
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v2
+        uses: github/codeql-action/init@v3
         with:
           languages: 'python,javascript'
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
+        uses: github/codeql-action/analyze@v3
 
       # Vulnerability detection
       - name: Check for vulnerabilities
@@ -170,7 +170,7 @@ EOFPYTHON
       # Upload scan results
       - name: Upload scan results
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: security-scan-results
           path: |

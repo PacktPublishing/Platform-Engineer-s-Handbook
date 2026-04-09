@@ -28,6 +28,10 @@ spec:
                 parameters:
                   type: object
                   properties:
+                    region:
+                      type: string
+                      description: AWS region for the database
+                      default: us-east-1
                     storageGB:
                       type: integer
                       description: Storage size in GB

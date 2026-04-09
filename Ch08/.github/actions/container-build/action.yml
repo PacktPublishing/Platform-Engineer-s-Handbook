@@ -1,5 +1,8 @@
 name: Container Build and Push
-description: Build and push container image with security scanning
+description: >
+  Build a container image, scan it for vulnerabilities, then push to the
+  registry only if the scan passes. Scanning before pushing ensures that
+  vulnerable images never land in the registry.
 
 inputs:
   image-name:
@@ -30,8 +33,42 @@ runs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build and push container image
-      uses: docker/build-push-action@v5
+    # Build locally (push: false) so Trivy can scan the image before it
+    # ever reaches the registry. The image is cached in the Docker daemon.
+    - name: Build container image (local, no push)
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: ${{ inputs.dockerfile }}
+        push: false
+        load: true
+        tags: |
+          ${{ inputs.registry }}/${{ github.repository }}/${{ inputs.image-name }}:${{ github.sha }}
+          ${{ inputs.registry }}/${{ github.repository }}/${{ inputs.image-name }}:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    # Scan the locally built image. The action fails the step on CRITICAL/HIGH
+    # findings so the push step below is never reached if vulnerabilities exist.
+    - name: Scan image with Trivy (before push)
+      uses: aquasecurity/trivy-action@0.20.0
+      with:
+        image-ref: ${{ inputs.registry }}/${{ github.repository }}/${{ inputs.image-name }}:${{ github.sha }}
+        format: sarif
+        output: trivy-results.sarif
+        exit-code: '1'
+        severity: 'CRITICAL,HIGH'
+
+    - name: Upload Trivy results to GitHub Security
+      if: always()
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: trivy-results.sarif
+        category: trivy-container-scan
+
+    # Only push to the registry after a clean scan.
+    - name: Push image to registry
+      uses: docker/build-push-action@v6
       with:
         context: .
         file: ${{ inputs.dockerfile }}
@@ -41,16 +78,3 @@ runs:
           ${{ inputs.registry }}/${{ github.repository }}/${{ inputs.image-name }}:latest
         cache-from: type=gha
         cache-to: type=gha,mode=max
-
-    - name: Run Trivy vulnerability scan
-      uses: aquasecurity/trivy-action@master
-      with:
-        image-ref: ${{ inputs.registry }}/${{ github.repository }}/${{ inputs.image-name }}:${{ github.sha }}
-        format: sarif
-        output: trivy-results.sarif
-
-    - name: Upload Trivy results to GitHub Security
-      uses: github/codeql-action/upload-sarif@v2
-      with:
-        sarif_file: trivy-results.sarif
-        category: trivy-container-scan

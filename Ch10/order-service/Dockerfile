@@ -17,8 +17,8 @@ COPY --from=builder /app/package.json ./
 RUN chown -R appuser:nodejs /app
 USER appuser
 ENV NODE_ENV=production
-ENV PORT=${{ values.port }}
-EXPOSE ${{ values.port }}
+ENV PORT=8080
+EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:${{ values.port }}/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1) })"
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
 CMD ["node", "dist/index.js"]
