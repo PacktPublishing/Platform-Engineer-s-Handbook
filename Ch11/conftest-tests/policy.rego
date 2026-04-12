@@ -78,25 +78,31 @@ allowed_registry(image) if {
     startswith(image, registries[_])
 }
 
-# Require mandatory labels
+# Require mandatory labels — workload resources only
+# ConstraintTemplates, CRDs, and other non-workload resources are excluded.
+workload_kinds := {"Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"}
+
 deny contains msg if {
+    workload_kinds[input.kind]
     not input.metadata.labels.team
-    msg := "Deployment missing 'team' label"
+    msg := sprintf("%v missing 'team' label", [input.kind])
 }
 
 deny contains msg if {
+    workload_kinds[input.kind]
     not input.metadata.labels.owner
-    msg := "Deployment missing 'owner' label"
+    msg := sprintf("%v missing 'owner' label", [input.kind])
 }
 
 deny contains msg if {
+    workload_kinds[input.kind]
     not input.metadata.labels["cost-center"]
-    msg := "Deployment missing 'cost-center' label"
+    msg := sprintf("%v missing 'cost-center' label", [input.kind])
 }
 
-# Warn on missing resource limits at pod level
+# Warn on missing containers — workload resources only
 warn contains msg if {
-    input.apiVersion
+    workload_kinds[input.kind]
     not input.spec.containers
-    msg := "Pod spec missing containers"
+    msg := sprintf("%v spec missing containers", [input.kind])
 }

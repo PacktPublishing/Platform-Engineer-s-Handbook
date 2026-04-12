@@ -115,6 +115,44 @@ class AIAgentMetrics:
             registry=self.registry
         )
 
+        # LLM-specific metrics for token counting and cost tracking
+        self.llm_tokens_total = Counter(
+            'llm_tokens_total',
+            'Total tokens consumed from LLM API (prompt + completion)',
+            ['agent_type', 'model'],
+            registry=self.registry
+        )
+
+        self.llm_cost_usd_total = Counter(
+            'llm_cost_usd_total',
+            'Total cost in USD from LLM API calls',
+            ['agent_type', 'model'],
+            registry=self.registry
+        )
+
+        self.llm_prompt_tokens = Histogram(
+            'llm_prompt_tokens',
+            'Distribution of prompt token counts',
+            ['agent_type'],
+            buckets=(10, 50, 100, 500, 1000, 2000),
+            registry=self.registry
+        )
+
+        self.llm_completion_tokens = Histogram(
+            'llm_completion_tokens',
+            'Distribution of completion token counts',
+            ['agent_type'],
+            buckets=(10, 50, 100, 500, 1000, 2000),
+            registry=self.registry
+        )
+
+        self.llm_api_errors = Counter(
+            'llm_api_errors_total',
+            'Total LLM API errors (rate limit, timeout, etc)',
+            ['agent_type', 'error_type'],
+            registry=self.registry
+        )
+
 
 class AgentCallTracker:
     """Tracks individual AI agent calls with detailed metrics."""
@@ -191,11 +229,75 @@ class AgentCallTracker:
     ) -> list:
         """Retrieve call history with optional filtering."""
         history = self.call_history
-        
+
         if agent_type:
             history = [h for h in history if h["agent_type"] == agent_type]
-        
+
         return history[-limit:]
+
+    def track_llm_call(
+        self,
+        agent_type: str,
+        model: str,
+        prompt_tokens: int,
+        completion_tokens: int,
+        cost_usd: float,
+        error_type: Optional[str] = None
+    ) -> None:
+        """
+        Track LLM API call for cost and token usage monitoring.
+
+        Args:
+            agent_type: Type of agent making the call
+            model: Model name (e.g., "claude-opus")
+            prompt_tokens: Number of prompt tokens
+            completion_tokens: Number of completion tokens
+            cost_usd: Cost in USD for this call
+            error_type: If present, indicates an error occurred
+        """
+        total_tokens = prompt_tokens + completion_tokens
+
+        # Update counters
+        self.metrics.llm_tokens_total.labels(
+            agent_type=agent_type,
+            model=model
+        ).inc(total_tokens)
+
+        self.metrics.llm_cost_usd_total.labels(
+            agent_type=agent_type,
+            model=model
+        ).inc(cost_usd)
+
+        # Record token distributions
+        self.metrics.llm_prompt_tokens.labels(
+            agent_type=agent_type
+        ).observe(prompt_tokens)
+
+        self.metrics.llm_completion_tokens.labels(
+            agent_type=agent_type
+        ).observe(completion_tokens)
+
+        # Track errors if present
+        if error_type:
+            self.metrics.llm_api_errors.labels(
+                agent_type=agent_type,
+                error_type=error_type
+            ).inc()
+
+        # Log the call
+        record = {
+            "timestamp": datetime.utcnow().isoformat() + 'Z',
+            "event_type": "llm_call",
+            "agent_type": agent_type,
+            "model": model,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens,
+            "cost_usd": cost_usd,
+            "error": error_type
+        }
+
+        logger.info(f"LLM call tracked: {json.dumps(record)}")
 
 
 def track_agent_call(

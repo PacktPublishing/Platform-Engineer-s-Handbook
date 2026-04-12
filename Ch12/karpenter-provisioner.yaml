@@ -1,28 +1,35 @@
-# Chapter 12: Karpenter Provisioner Configuration
-# Listing 12.5 - Karpenter provisioner for intelligent node selection
+# Chapter 12: Karpenter NodePool Configuration
+# Listing 12.5 - Karpenter NodePool for intelligent node selection
 # Karpenter automatically selects the cheapest instance type that meets
 # your pod's resource requirements, including spot and on-demand options.
+# NOTE: Karpenter v1 uses NodePool (karpenter.sh/v1), not v1alpha5 Provisioner
 
-apiVersion: karpenter.sh/v1alpha5
-kind: Provisioner
+apiVersion: karpenter.sh/v1
+kind: NodePool
 metadata:
   name: default
 spec:
-  requirements:
-    - key: karpenter.sh/capacity-type
-      operator: In
-      values: ["on-demand", "spot"]
-    - key: karpenter.sh/performance
-      operator: In
-      values: ["general-purpose", "compute-optimized"]
-    - key: node.kubernetes.io/instance-type
-      operator: In
-      values:
-        - "m5.large"
-        - "m5.xlarge"
-        - "m6i.large"
-        - "m6i.xlarge"
-        - "c5.large"
-  providerRef:
-    name: default
-  ttlSecondsUntilExpired: 2592000
+  template:
+    spec:
+      requirements:
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand", "spot"]
+        - key: karpenter.k8s.aws/instance-category
+          operator: In
+          values: ["m", "c"]
+        - key: karpenter.k8s.aws/instance-family
+          operator: In
+          values: ["m5", "m6i", "c5"]
+        - key: karpenter.k8s.aws/instance-size
+          operator: In
+          values: ["large", "xlarge"]
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: default
+  disruption:
+    expireAfter: 720h
+    consolidateAfter: 30s
+    consolidationPolicy: cost
+    expireSeconds: 2592000

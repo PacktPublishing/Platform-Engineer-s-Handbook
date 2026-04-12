@@ -187,14 +187,32 @@ perform_restore() {
     print_info "Restore name: $restore_name"
 
     # Create restore resource
-    velero restore create "$restore_name" \
-        --from-backup "$backup_name" \
-        --namespace-mappings "$(echo "${VALIDATE_NAMESPACES:-}" | sed 's/,/:'"$namespace"',/g;s/$/:'$namespace'/')" \
-        --wait \
-        -n "$VELERO_NAMESPACE" || {
+    local restore_cmd=(
+        "velero" "restore" "create" "$restore_name"
+        "--from-backup" "$backup_name"
+        "--wait"
+        "-n" "$VELERO_NAMESPACE"
+    )
+
+    # Add namespace mappings if specified
+    if [ -n "${VALIDATE_NAMESPACES:-}" ]; then
+        # Convert comma-separated list to velero namespace-mappings format (src:dest,src:dest)
+        local mappings=""
+        IFS=',' read -ra ns_array <<< "$VALIDATE_NAMESPACES"
+        for ns in "${ns_array[@]}"; do
+            if [ -n "$mappings" ]; then
+                mappings="${mappings},${ns}:${namespace}"
+            else
+                mappings="${ns}:${namespace}"
+            fi
+        done
+        restore_cmd+=("--namespace-mappings" "$mappings")
+    fi
+
+    if ! velero "${restore_cmd[@]}"; then
         print_error "Failed to create restore: $restore_name"
         return 1
-    }
+    fi
 
     print_success "Restore completed: $restore_name"
     RESTORE_END_TIME=$(date +%s)

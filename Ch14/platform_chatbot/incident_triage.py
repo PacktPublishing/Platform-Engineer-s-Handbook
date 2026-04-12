@@ -442,6 +442,31 @@ Provide a concise root cause and remediation steps."""
         """Triage multiple incidents."""
         return [self.triage(incident) for incident in incidents]
     
+    def route_incident(self, analysis: IncidentAnalysis) -> Dict[str, str]:
+        """
+        Route incident to appropriate channels based on severity and confidence.
+
+        Determines whether to page on-call (high confidence + critical),
+        create Slack thread (high severity), or create tracking ticket (all).
+
+        Returns:
+            Dict mapping channel/system names to actions
+        """
+        actions = {}
+
+        # Page on-call via PagerDuty for critical + high confidence incidents
+        if analysis.severity == "critical" and analysis.confidence_score >= 0.85:
+            actions["pagerduty"] = "create_incident"
+
+        # Alert Slack #incidents channel for high/critical severity
+        if analysis.severity in ["high", "critical"]:
+            actions["slack"] = "#incidents"
+
+        # Create issue in tracking system for all incidents (lower severity = asynchronous)
+        actions["issue_tracker"] = f"create_issue_{analysis.incident_id}"
+
+        return actions
+
     def to_slack_message(self, analysis: IncidentAnalysis) -> Dict:
         """Format incident analysis as Slack message."""
         return {

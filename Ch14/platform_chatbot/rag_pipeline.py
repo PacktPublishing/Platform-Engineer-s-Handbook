@@ -29,6 +29,11 @@ except ImportError:
     chromadb = None
 
 try:
+    from rank_bm25 import BM25Okapi
+except ImportError:
+    BM25Okapi = None
+
+try:
     from langchain_anthropic import ChatAnthropic
 except ImportError:
     ChatAnthropic = None
@@ -217,28 +222,34 @@ class RAGPipeline:
         self,
         query: str,
         top_k: int = 3,
-        include_confidence: bool = True
+        include_confidence: bool = True,
+        use_hybrid: bool = False
     ) -> RetrievalResult:
         """
         Query the RAG system.
-        
+
         Args:
             query: User query string
             top_k: Number of relevant documents to retrieve
             include_confidence: Include similarity confidence scores
-        
+            use_hybrid: If True, combine BM25 (keyword) + vector (semantic) retrieval
+
         Returns:
             RetrievalResult with context, answer, and citations
         """
         import time
         start_time = time.time()
-        
-        # Retrieve relevant documents
-        retrieved_docs, scores = self.vector_store.retrieve(
-            query=query,
-            top_k=top_k
-        )
-        
+
+        # Hybrid retrieval: combine BM25 + vector similarity
+        if use_hybrid and BM25Okapi and hasattr(self.vector_store, 'documents'):
+            retrieved_docs, scores = self._hybrid_retrieve(query, top_k)
+        else:
+            # Vector-only retrieval (fallback)
+            retrieved_docs, scores = self.vector_store.retrieve(
+                query=query,
+                top_k=top_k
+            )
+
         # Filter by similarity threshold
         filtered_docs = []
         filtered_scores = []
@@ -246,16 +257,16 @@ class RAGPipeline:
             if score >= self.similarity_threshold:
                 filtered_docs.append(doc)
                 filtered_scores.append(score)
-        
+
         # Build context from retrieved documents
         context = "\n\n---\n\n".join(filtered_docs)
         sources = self._extract_sources(filtered_docs)
-        
+
         # Generate answer using LLM
         answer = self._generate_answer(query, context)
-        
+
         retrieval_time = (time.time() - start_time) * 1000
-        
+
         return RetrievalResult(
             query=query,
             context_documents=filtered_docs,
@@ -264,6 +275,78 @@ class RAGPipeline:
             source_citations=sources,
             retrieval_time_ms=retrieval_time
         )
+
+    def _hybrid_retrieve(self, query: str, top_k: int = 3) -> Tuple[List[str], List[float]]:
+        """
+        Hybrid retrieval combining BM25 (keyword) and vector (semantic) similarity.
+
+        Returns:
+            Tuple of (documents, scores) ranked by combined relevance
+        """
+        # Vector retrieval (semantic)
+        vector_docs, vector_scores = self.vector_store.retrieve(query, top_k=top_k*2)
+
+        # BM25 retrieval (keyword-based)
+        bm25_docs, bm25_scores = self._bm25_retrieve(query, top_k=top_k*2)
+
+        # Combine results by document (if seen in both, add both scores)
+        combined = {}
+
+        # Weight vector results at 60%
+        for doc, score in zip(vector_docs, vector_scores):
+            combined[doc] = combined.get(doc, 0) + (score * 0.6)
+
+        # Weight BM25 results at 40%
+        for doc, score in zip(bm25_docs, bm25_scores):
+            combined[doc] = combined.get(doc, 0) + (score * 0.4)
+
+        # Sort by combined score and return top-k
+        ranked = sorted(combined.items(), key=lambda x: x[1], reverse=True)
+        final_docs = [doc for doc, score in ranked[:top_k]]
+        final_scores = [score for doc, score in ranked[:top_k]]
+
+        return final_docs, final_scores
+
+    def _bm25_retrieve(self, query: str, top_k: int = 3) -> Tuple[List[str], List[float]]:
+        """
+        BM25 keyword-based retrieval for exact and near-exact matches.
+
+        Returns:
+            Tuple of (documents, scores)
+        """
+        if not BM25Okapi or not hasattr(self.vector_store, 'documents'):
+            return [], []
+
+        try:
+            # Build BM25 index from all documents
+            corpus = [doc['content'].split() for doc in self.vector_store.documents]
+            bm25 = BM25Okapi(corpus)
+
+            # Score query
+            query_tokens = query.split()
+            scores = bm25.get_scores(query_tokens)
+
+            # Get top-k documents
+            doc_scores = [
+                (self.vector_store.documents[i]['content'], scores[i])
+                for i in range(len(scores))
+            ]
+            doc_scores.sort(key=lambda x: x[1], reverse=True)
+
+            final_docs = [doc for doc, score in doc_scores[:top_k]]
+            final_scores = [score for doc, score in doc_scores[:top_k]]
+
+            # Normalize scores to 0-1 range
+            if final_scores:
+                max_score = max(final_scores)
+                if max_score > 0:
+                    final_scores = [s / max_score for s in final_scores]
+
+            return final_docs, final_scores
+
+        except Exception as e:
+            logger.warning(f"BM25 retrieval failed: {e}. Falling back to vector-only.")
+            return [], []
     
     def _generate_answer(self, query: str, context: str) -> str:
         """Generate answer using LLM with context."""

@@ -91,7 +91,7 @@ class VeleroBackupManager:
         if namespaces:
             cmd.extend(["--include-namespaces", ",".join(namespaces)])
         else:
-            cmd.append("--include-namespaces", "*")
+            cmd.extend(["--include-namespaces", "*"])
         
         if exclude_namespaces:
             cmd.extend(["--exclude-namespaces", ",".join(exclude_namespaces)])
