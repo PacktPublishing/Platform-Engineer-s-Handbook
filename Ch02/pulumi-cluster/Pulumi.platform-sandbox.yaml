@@ -1,0 +1,28 @@
+# =============================================================================
+# Pulumi.platform-sandbox.yaml — Stack Configuration: platform-sandbox
+# =============================================================================
+# Environment: Platform team sandbox — deployed on every commit to main.
+# Mirrors production topology while providing a safe space for validation.
+#
+# Usage:
+#   pulumi stack select platform-sandbox
+#   pulumi preview
+#   pulumi up
+# =============================================================================
+
+config:
+  # ── Network ────────────────────────────────────────────────────────────────
+  network:vpcCidr: "10.0.0.0/16"         # CIDR block for the Docker network
+
+  # ── Cluster ────────────────────────────────────────────────────────────────
+  cluster:name: "platform-sandbox"        # Kind cluster name
+  cluster:kubernetesVersion: "1.29"       # Kubernetes version (keep pinned)
+  cluster:numWorkerNodes: 2               # Worker node count
+  cluster:environment: "platform-sandbox" # Passed as node label
+
+  # ── GitOps (Flux) ──────────────────────────────────────────────────────────
+  # URL of the platform-gitops App of Apps repository.
+  # The Flux module uses this to seed the GitOps controller on first boot.
+  flux:gitopsRepoUrl: "https://github.com/pe-organization/platform-gitops.git"
+  flux:gitopsRepoPath: "./environments/platform-sandbox"
+  flux:version: "2.3.0"                   # Flux Helm chart version — pin explicitly

@@ -1,0 +1,12 @@
+# =============================================================================
+# platform-gitops/environments/platform-sandbox/tenants/kustomization.yaml
+# =============================================================================
+# Lists every tenant the platform manages in the platform-sandbox environment.
+# Add a new folder entry here when onboarding a new team.
+# =============================================================================
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - platform-services    # Core platform services (Istio, cert-manager, monitoring)

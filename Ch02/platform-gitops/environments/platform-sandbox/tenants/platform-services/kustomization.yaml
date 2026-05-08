@@ -1,0 +1,11 @@
+# =============================================================================
+# kustomization.yaml — platform-services tenant (platform-sandbox)
+# =============================================================================
+# Kustomize entry point for the platform-services tenant directory.
+# =============================================================================
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - platform-services.yaml

@@ -1,0 +1,65 @@
+# =============================================================================
+# environments/base/helm-repos.yaml — Flux HelmRepository Sources (Base)
+# =============================================================================
+# Declares all third-party Helm chart repositories used by this platform.
+# Kept in base/ because the repository URLs are the same across all environments;
+# only the chart versions differ (set in per-environment overlays).
+#
+# Applied to the cluster by the Flux GitOps controller running in flux-system.
+# =============================================================================
+
+---
+# Istio — service mesh control and data plane
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: HelmRepository
+metadata:
+  name: istio
+  namespace: flux-system
+spec:
+  interval: 30m
+  url: https://istio-release.storage.googleapis.com/charts
+  timeout: 1m
+
+---
+# Jetstack — cert-manager for TLS certificate management
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: HelmRepository
+metadata:
+  name: jetstack
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://charts.jetstack.io
+
+---
+# Prometheus Community — kube-prometheus-stack (Prometheus + Grafana + Alertmanager)
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: HelmRepository
+metadata:
+  name: prometheus-community
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://prometheus-community.github.io/helm-charts
+
+---
+# Open Policy Agent — Gatekeeper admission controller
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: HelmRepository
+metadata:
+  name: open-policy-agent
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://open-policy-agent.github.io/gatekeeper/charts
+
+---
+# Flux CD Community — Flux2 Helm chart (used by Pulumi flux module)
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: HelmRepository
+metadata:
+  name: fluxcd-community
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://fluxcd-community.github.io/helm-charts

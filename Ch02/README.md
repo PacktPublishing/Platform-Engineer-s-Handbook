@@ -227,6 +227,64 @@ Istio service mesh configuration resources.
 - Define authorization policies
 - Configure observability with metrics and tracing
 
+### 2.5b: Platform-Services Repository — Kustomize Structure
+
+Files in the `environments/` tree belong to the **platform-services** repository that GitOps monitors.
+
+| File | Description |
+|------|-------------|
+| `environments/base/helm-repos.yaml` | Flux `HelmRepository` CRDs for Istio, cert-manager, Prometheus, OPA, Flux |
+| `environments/base/istio-helm.yaml` | Flux `HelmRelease` CRDs for istio-base, istiod, and istio-ingress (versions omitted — set per env) |
+| `environments/base/kustomization.yaml` | Kustomize root listing base resources for overlay inheritance |
+| `environments/platform-sandbox/istio.yaml` | Version overlay: pins istio-base, istiod, istio-ingress to `1.22.4` for platform-sandbox |
+| `environments/platform-sandbox/kustomization.yaml` | Kustomize overlay: includes base resources + applies `istio.yaml` patch + adds env label |
+| `environments/app-dev/istio.yaml` | Version overlay for app-dev (promoted from sandbox after validation) |
+| `environments/app-dev/kustomization.yaml` | Kustomize overlay for app-dev environment |
+
+### 2.5c: Platform-GitOps Repository — App of Apps Structure
+
+Files in `platform-gitops/` belong to the **platform-gitops** App of Apps repository.
+
+| File | Description |
+|------|-------------|
+| `platform-gitops/environments/platform-sandbox/kustomization.yaml` | Entry point for sandbox env — includes `tenants/` |
+| `platform-gitops/environments/platform-sandbox/tenants/kustomization.yaml` | Lists tenant folders (platform-services) |
+| `platform-gitops/environments/platform-sandbox/tenants/platform-services/platform-services.yaml` | `GitRepository` + `Kustomization` CRDs that tell Flux to monitor platform-services repo |
+| `platform-gitops/environments/platform-sandbox/tenants/platform-services/kustomization.yaml` | Kustomize entry for platform-services tenant |
+
+### 2.5d: Smoke Testing & Reconciliation
+
+| File | Description |
+|------|-------------|
+| `smoke/http-gateway.yaml` | Minimal Istio `Gateway` + `VirtualService` deployed during smoke tests only |
+| `smoke/gateway_job.yaml` | Kubernetes `Job` that sends a curl request through the Istio ingress to validate routing |
+| `scripts/flux_reconcile.sh` | Bash script: forces Flux reconciliation, waits for readiness, then runs the gateway smoke test |
+
+### 2.5e: Policy-as-Code
+
+**File:** `policy/flux.rego`
+
+OPA/Rego policies validated by `conftest` in the pre-merge CI step.
+
+| Rule | What it enforces |
+|------|-----------------|
+| Deny `:latest` image tags | All containers (including init) must pin an explicit version |
+| Deny unauthorized namespaces | Deployments restricted to `app-dev`, `app-qa`, `app-prod`, `platform-sandbox` |
+| Require resource limits | CPU and memory limits mandatory on all containers |
+| Deny floating Helm chart versions | `*` wildcards and `>=` ranges rejected in `HelmRelease` specs |
+| Require standard labels | `app`, `owner`, `env` labels required on all Deployments |
+
+### 2.4b: CircleCI Deployment Pipeline
+
+**File:** `.circleci/config.yml`
+
+Full CI/CD pipeline implementing the hardened deployment strategy from Figure 2.3.
+
+| Workflow | Trigger | Steps |
+|----------|---------|-------|
+| `preview` | Commit to `main` | lint → type-check → policy-check → pulumi preview → deploy sandbox → bats tests → flux reconcile + smoke test |
+| `update` | Git tag | Same as preview → manual approval gate → deploy app-dev → validate app-dev |
+
 ### 2.6: Pulumi Kind Cluster
 
 **Primary File:** `pulumi-cluster/__main__.py`
@@ -332,13 +390,27 @@ Pulumi project configuration file.
 - Configuration parameters for cluster name, Kubernetes version, node count, environment, region
 - VirtualEnv setup for dependency isolation
 
+#### Pulumi.platform-sandbox.yaml / Pulumi.app-dev.yaml
+
+Per-environment Pulumi stack configuration files.
+
+| Key config | platform-sandbox | app-dev |
+|-----------|-----------------|---------|
+| `network:vpcCidr` | `10.0.0.0/16` | `10.1.0.0/16` |
+| `cluster:name` | `platform-sandbox` | `app-dev` |
+| `flux:gitopsRepoPath` | `./environments/platform-sandbox` | `./environments/app-dev` |
+
+Select a stack with `pulumi stack select platform-sandbox` before running `pulumi up`.
+
 ### pulumi-cluster/ Directory
 
 Pulumi project for Kind cluster deployment.
 
 **Files:**
 - `__main__.py`: Kind cluster with configurable workers, networking, port mappings
-- `Pulumi.yaml`: Project configuration and stacks
+- `Pulumi.yaml`: Project configuration (common settings)
+- `Pulumi.platform-sandbox.yaml`: Stack config for platform-sandbox environment
+- `Pulumi.app-dev.yaml`: Stack config for app-dev environment
 - `requirements.txt`: Python dependencies (pulumi, pulumi-kubernetes, pyyaml)
 
 ### test/ Directory

@@ -1,0 +1,26 @@
+# =============================================================================
+# Pulumi.app-dev.yaml — Stack Configuration: app-dev
+# =============================================================================
+# Environment: Application team development environment.
+# Deployed only when platform-sandbox has been validated and a Git tag is pushed.
+#
+# Usage:
+#   pulumi stack select app-dev
+#   pulumi preview
+#   pulumi up
+# =============================================================================
+
+config:
+  # ── Network ────────────────────────────────────────────────────────────────
+  network:vpcCidr: "10.1.0.0/16"         # Separate CIDR — avoid overlap with sandbox
+
+  # ── Cluster ────────────────────────────────────────────────────────────────
+  cluster:name: "app-dev"
+  cluster:kubernetesVersion: "1.29"       # Must match sandbox version during promotion
+  cluster:numWorkerNodes: 2
+  cluster:environment: "app-dev"
+
+  # ── GitOps (Flux) ──────────────────────────────────────────────────────────
+  flux:gitopsRepoUrl: "https://github.com/pe-organization/platform-gitops.git"
+  flux:gitopsRepoPath: "./environments/app-dev"
+  flux:version: "2.3.0"                   # Keep in sync with platform-sandbox

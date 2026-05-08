@@ -1,0 +1,28 @@
+# =============================================================================
+# environments/platform-sandbox/kustomization.yaml — Platform-Sandbox Overlay
+# =============================================================================
+# Tells the Flux GitOps controller which resources belong to this environment
+# and which patches to apply on top of the base configuration.
+#
+# When the Flux Kustomization CRD in the platform-gitops repository points to
+# ./environments/platform-sandbox, this file is the entry point.
+# =============================================================================
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Include base resources first, then layer in environment-specific patches
+resources:
+  - ../base/helm-repos.yaml
+  - ../base/istio-helm.yaml
+
+# Apply the per-environment version pins and overrides
+patches:
+  - path: istio.yaml
+
+# Label all resources deployed into this environment
+labels:
+  - pairs:
+      env: platform-sandbox
+    includeSelectors: true
+    includeTemplates: true

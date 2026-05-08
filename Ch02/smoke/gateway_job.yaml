@@ -1,0 +1,58 @@
+# =============================================================================
+# smoke/gateway_job.yaml — Istio Gateway Smoke Test Job
+# =============================================================================
+# Kubernetes Job that launches a curl container to push a request through the
+# Istio Ingress Gateway, confirming that the service mesh is routing traffic.
+#
+# Environment variable SMOKE_HOST controls the Host header value sent to the
+# gateway. Set it to the hostname expected in your environment, for example:
+#   - platform-sandbox.local (local Kind cluster)
+#   - sandbox.internal.company.com (shared dev environment)
+#
+# The job is self-cleaning: the test script deletes this manifest after the
+# job completes. backoffLimit: 0 ensures a single attempt with no retries,
+# making failures explicit and fast.
+#
+# Usage (via test script):
+#   SMOKE_HOST=platform-sandbox.local kubectl apply -f smoke/gateway_job.yaml
+# =============================================================================
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: smoke-gateway
+  namespace: istio-system
+spec:
+  backoffLimit: 0          # Fail immediately — do not retry on error
+  ttlSecondsAfterFinished: 120   # Auto-delete Job object after 2 minutes
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: curl
+          image: curlimages/curl:8.10.1    # Pin image version — no :latest
+          env:
+            - name: SMOKE_HOST
+              value: "platform-sandbox.local"   # Override via kubectl set env or envFrom
+          args:
+            - sh
+            - -c
+            - |
+              set -e
+              H="${SMOKE_HOST:-platform-sandbox.local}"
+              echo "Testing gateway with Host: $H"
+              curl -sS \
+                -H "Host: $H" \
+                --max-time 10 \
+                --retry 3 \
+                --retry-delay 2 \
+                http://istio-ingressgateway.istio-system.svc.cluster.local/ \
+                | head -n 3
+              echo "Smoke test PASSED"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi

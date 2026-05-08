@@ -1,0 +1,14 @@
+# =============================================================================
+# environments/base/kustomization.yaml — Base Kustomize Root
+# =============================================================================
+# Lists all base resources that environment overlays can patch.
+# Environment-specific directories (platform-sandbox/, app-dev/, etc.)
+# inherit from this base via their own kustomization.yaml.
+# =============================================================================
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - helm-repos.yaml    # HelmRepository sources for all Flux HelmReleases
+  - istio-helm.yaml    # Istio base, istiod, and ingress HelmReleases

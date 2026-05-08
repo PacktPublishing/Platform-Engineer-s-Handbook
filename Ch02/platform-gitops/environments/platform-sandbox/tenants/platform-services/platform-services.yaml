@@ -1,0 +1,40 @@
+# =============================================================================
+# platform-gitops/.../platform-services/platform-services.yaml
+# =============================================================================
+# Flux GitRepository + Kustomization CRDs that instruct the GitOps controller
+# to monitor the platform-services repository and apply its manifests to the
+# platform-sandbox environment.
+#
+# This is the App of Apps "leaf" configuration for platform services.
+# The controller picks this up via the tenant kustomization hierarchy.
+# =============================================================================
+
+---
+# GitRepository: tell Flux which repository to watch
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: platform-services
+  namespace: flux-system
+spec:
+  url: https://github.com/pe-organization/platform-services.git
+  ref:
+    branch: main
+  interval: 1m
+
+---
+# Kustomization: tell Flux which path in the repo maps to this environment
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: platform-services
+  namespace: flux-system
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: platform-services
+  path: ./environments/platform-sandbox  # Points to the platform-sandbox overlay
+  interval: 1m
+  timeout: 10m0s
+  prune: true     # Remove resources no longer present in git
+  wait: true      # Block until all managed resources are healthy

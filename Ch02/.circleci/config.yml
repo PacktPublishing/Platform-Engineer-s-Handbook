@@ -1,0 +1,226 @@
+# =============================================================================
+# .circleci/config.yml — Chapter 2 CI/CD Pipeline
+# =============================================================================
+# Deployment pipeline for the platform-core repository.
+#
+# Strategy:
+#   - On every commit to main → preview + deploy to platform-sandbox → validate
+#   - On Git tag             → re-validate sandbox, then deploy to app-dev
+#
+# Prerequisites (Appendix A):
+#   - CircleCI self-hosted runner installed on your local machine
+#   - Runner resource class: peh_runner/local_laptop_runner
+#   - Bitwarden CLI available in runner PATH (for secret injection)
+#   - pulumi, kubectl, flux, bats CLIs installed on runner
+# =============================================================================
+
+version: 2.1
+
+# ── Reusable anchors ──────────────────────────────────────────────────────────
+context: &context
+  - platform-secrets    # CircleCI context holding PULUMI_ACCESS_TOKEN, etc.
+
+on-push-main: &on-push-main
+  branches:
+    only: /^main$/
+  tags:
+    ignore: /.*/
+
+on-tag-main: &on-tag-main
+  branches:
+    ignore: /.*/
+  tags:
+    only: /.*/
+
+# ── Executors ─────────────────────────────────────────────────────────────────
+executors:
+  local-machine:
+    machine: true
+    resource_class: peh_runner/local_laptop_runner
+    working_directory: ~/project
+
+# ── Reusable commands ─────────────────────────────────────────────────────────
+commands:
+  setup-python:
+    description: Set up Python virtual environment with uv
+    steps:
+      - run:
+          name: Install dependencies
+          command: |
+            uv venv venv
+            source venv/bin/activate
+            uv pip install -r pulumi-cluster/requirements.txt
+
+  lint-code:
+    description: Code linting (formatting, types, imports)
+    steps:
+      - run:
+          name: Check code formatting with black
+          command: uv run black --check --diff pulumi-cluster/
+      - run:
+          name: Type check with mypy
+          command: uv run mypy pulumi-cluster/ --ignore-missing-imports
+      - run:
+          name: Check import sorting with isort
+          command: uv run isort --check-only pulumi-cluster/
+
+  static-analysis:
+    description: Static analysis and security scanning
+    steps:
+      - run:
+          name: Lint with ruff
+          command: uv run ruff check pulumi-cluster/
+      - run:
+          name: Security scan with bandit
+          command: uv run bandit -r pulumi-cluster/ -ll
+
+  policy-check:
+    description: OPA/conftest policy validation
+    steps:
+      - run:
+          name: Run conftest against environment manifests
+          command: conftest test environments/ --policy policy/
+      - run:
+          name: Run conftest against smoke test manifests
+          command: conftest test smoke/ --policy policy/
+
+# ── Jobs ──────────────────────────────────────────────────────────────────────
+jobs:
+  pulumi-preview:
+    executor: local-machine
+    parameters:
+      pulumi_stack:
+        type: string
+    steps:
+      - checkout
+      - setup-python
+      - lint-code
+      - static-analysis
+      - policy-check
+      - run:
+          name: Pulumi preview (<< parameters.pulumi_stack >>)
+          command: |
+            cd pulumi-cluster
+            source ../venv/bin/activate
+            pulumi stack select << parameters.pulumi_stack >>
+            pulumi preview
+
+  pulumi-update:
+    executor: local-machine
+    parameters:
+      pulumi_stack:
+        type: string
+    steps:
+      - checkout
+      - setup-python
+      - run:
+          name: Pulumi update (<< parameters.pulumi_stack >>)
+          command: |
+            cd pulumi-cluster
+            source ../venv/bin/activate
+            pulumi stack select << parameters.pulumi_stack >>
+            pulumi up --yes --skip-preview
+
+  validate-infrastructure:
+    executor: local-machine
+    parameters:
+      pulumi_stack:
+        type: string
+    steps:
+      - checkout
+      - run:
+          name: Export kubeconfig from Pulumi stack
+          command: |
+            cd pulumi-cluster
+            pulumi stack select << parameters.pulumi_stack >>
+            pulumi stack output kubeconfig > ../kubeconfig.yaml
+            echo "export KUBECONFIG=$PWD/../kubeconfig.yaml" >> $BASH_ENV
+      - run:
+          name: Run bats infrastructure tests
+          command: bats test/infrastructure.bats
+      - run:
+          name: Force Flux reconciliation and smoke test
+          command: |
+            export PULUMI_STACK=<< parameters.pulumi_stack >>
+            export SMOKE_HOST="${PULUMI_STACK}.local"
+            bash scripts/flux_reconcile.sh
+      - run:
+          name: Clean up kubeconfig
+          when: always
+          command: rm -f kubeconfig.yaml
+
+  approve-prod:
+    executor: local-machine
+    steps:
+      - run:
+          name: Manual approval gate
+          command: echo "Approved for production deployment"
+
+# ── Workflows ─────────────────────────────────────────────────────────────────
+workflows:
+  # ── Sandbox: runs on every commit to main ───────────────────────────────────
+  preview:
+    jobs:
+      - pulumi-preview:
+          context: *context
+          pulumi_stack: platform-sandbox
+          filters: *on-push-main
+      - pulumi-update:
+          name: "Deploy to platform-sandbox"
+          context: *context
+          pulumi_stack: platform-sandbox
+          requires:
+            - pulumi-preview
+          filters: *on-push-main
+      - validate-infrastructure:
+          name: "Validate platform-sandbox"
+          context: *context
+          pulumi_stack: platform-sandbox
+          requires:
+            - Deploy to platform-sandbox
+          filters: *on-push-main
+
+  # ── Production: runs on Git tag ─────────────────────────────────────────────
+  update:
+    jobs:
+      # Re-validate sandbox against the tagged commit
+      - pulumi-preview:
+          context: *context
+          pulumi_stack: platform-sandbox
+          filters: *on-tag-main
+      - pulumi-update:
+          name: "Deploy to platform-sandbox (tag)"
+          context: *context
+          pulumi_stack: platform-sandbox
+          requires:
+            - pulumi-preview
+          filters: *on-tag-main
+      - validate-infrastructure:
+          name: "Validate platform-sandbox (tag)"
+          context: *context
+          pulumi_stack: platform-sandbox
+          requires:
+            - Deploy to platform-sandbox (tag)
+          filters: *on-tag-main
+      # Gate: manual approval before app-dev
+      - approve-prod:
+          name: "Approve app-dev deploy"
+          type: approval
+          requires:
+            - Validate platform-sandbox (tag)
+          filters: *on-tag-main
+      # Deploy to app-dev after approval
+      - pulumi-update:
+          name: "Deploy to app-dev"
+          context: *context
+          pulumi_stack: app-dev
+          requires:
+            - Approve app-dev deploy
+          filters: *on-tag-main
+      - validate-infrastructure:
+          name: "Validate app-dev"
+          context: *context
+          pulumi_stack: app-dev
+          requires:
+            - Deploy to app-dev
+          filters: *on-tag-main

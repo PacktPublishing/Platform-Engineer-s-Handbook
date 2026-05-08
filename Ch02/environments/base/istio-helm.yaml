@@ -1,0 +1,146 @@
+# =============================================================================
+# environments/base/istio-helm.yaml — Istio Service Mesh HelmRelease (Base)
+# =============================================================================
+# Defines the base Flux HelmRelease resources for all three Istio components:
+#   1. istio-base  — CRDs and cluster-wide resources (Data Plane foundation)
+#   2. istiod      — Control Plane (Pilot, Citadel, Gallery)
+#   3. istio-ingress — Ingress Gateway (load balancer for inbound traffic)
+#
+# Chart versions are intentionally OMITTED here.
+# Each environment overlay (e.g. environments/platform-sandbox/istio.yaml)
+# must specify the version so that upgrades can be controlled per environment.
+#
+# See: https://istio.io/latest/docs/setup/install/helm/
+# =============================================================================
+
+---
+# ── 1. istio-base: CRDs and cluster-wide RBAC ────────────────────────────────
+# Installs the Istio CRDs (VirtualService, DestinationRule, Gateway, etc.)
+# and the cluster-level RBAC resources that Istiod depends on.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: istio-base
+  namespace: flux-system   # Flux executes from this namespace
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: base
+      sourceRef:
+        kind: HelmRepository
+        name: istio            # References helm-repos.yaml
+        namespace: flux-system
+  targetNamespace: istio-system
+  install:
+    createNamespace: true
+    timeout: 10m0s
+    remediation:
+      retries: 3
+  upgrade:
+    timeout: 10m0s
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  # version: <set per environment in istio.yaml overlay>
+
+---
+# ── 2. istiod: Control Plane ─────────────────────────────────────────────────
+# Runs the Pilot (service discovery + traffic management),
+# Citadel (certificate management + mTLS), and Gallery (config validation)
+# as a single consolidated istiod pod.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: istiod
+  namespace: flux-system
+spec:
+  interval: 5m
+  dependsOn:
+    - name: istio-base       # Must have CRDs before control plane starts
+  chart:
+    spec:
+      chart: istiod
+      sourceRef:
+        kind: HelmRepository
+        name: istio
+        namespace: flux-system
+  targetNamespace: istio-system
+  install:
+    timeout: 10m0s
+    remediation:
+      retries: 3
+  upgrade:
+    timeout: 10m0s
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  values:
+    global:
+      istioNamespace: istio-system
+    pilot:
+      autoscaleEnabled: true
+      autoscaleMin: 1
+      autoscaleMax: 3
+      resources:
+        requests:
+          cpu: 200m
+          memory: 512Mi
+        limits:
+          cpu: 500m
+          memory: 1Gi
+      env:
+        # Enable Kubernetes Gateway API support (used in later chapters)
+        PILOT_ENABLE_ALPHA_GATEWAY_API: "true"
+  # version: <set per environment in istio.yaml overlay>
+
+---
+# ── 3. istio-ingress: Ingress Gateway ────────────────────────────────────────
+# Deploys the Envoy-based load balancer that receives all inbound traffic.
+# VirtualService resources route from this Gateway to backend services.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: istio-ingress
+  namespace: flux-system
+spec:
+  interval: 5m
+  dependsOn:
+    - name: istiod           # Gateway requires the control plane to be up
+  chart:
+    spec:
+      chart: gateway
+      sourceRef:
+        kind: HelmRepository
+        name: istio
+        namespace: flux-system
+  targetNamespace: istio-system
+  install:
+    timeout: 10m0s
+    remediation:
+      retries: 3
+  upgrade:
+    timeout: 10m0s
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  values:
+    name: istio-ingressgateway
+    replicaCount: 1           # Scale up in app-dev / app-prod
+    service:
+      type: LoadBalancer
+      ports:
+        - port: 80
+          targetPort: 8080
+          name: http2
+        - port: 443
+          targetPort: 8443
+          name: https
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  # version: <set per environment in istio.yaml overlay>

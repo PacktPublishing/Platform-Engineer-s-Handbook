@@ -1,0 +1,53 @@
+# =============================================================================
+# smoke/http-gateway.yaml — Istio Gateway for Smoke Testing
+# =============================================================================
+# Defines a minimal Istio Gateway that accepts HTTP traffic on port 80.
+# Used exclusively for post-deployment smoke tests — not a production ingress.
+#
+# Deployed and deleted automatically by the smoke test pipeline step.
+# See: scripts/flux_reconcile.sh for the test orchestration.
+#
+# Usage:
+#   kubectl -n istio-system apply  -f smoke/http-gateway.yaml
+#   kubectl -n istio-system delete -f smoke/http-gateway.yaml
+# =============================================================================
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: smoke-gateway
+  namespace: istio-system
+spec:
+  selector:
+    istio: ingressgateway    # Targets the istio-ingress pod deployed via Helm
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - "*"                # Accept any hostname for smoke testing
+
+---
+# VirtualService: route all traffic entering the smoke-gateway to the
+# istio-ingressgateway service so the curl Job can receive a response.
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: smoke-virtual-service
+  namespace: istio-system
+spec:
+  hosts:
+    - "*"
+  gateways:
+    - smoke-gateway
+  http:
+    - match:
+        - uri:
+            prefix: "/"
+      route:
+        - destination:
+            host: istio-ingressgateway.istio-system.svc.cluster.local
+            port:
+              number: 80

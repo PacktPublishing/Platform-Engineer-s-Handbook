@@ -1,0 +1,22 @@
+# =============================================================================
+# environments/app-dev/kustomization.yaml — App-Dev Overlay
+# =============================================================================
+# Overlay for the app-dev environment. Deploy here only after platform-sandbox
+# validation succeeds and a SEMVER tag has been pushed to platform-core.
+# =============================================================================
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../base/helm-repos.yaml
+  - ../base/istio-helm.yaml
+
+patches:
+  - path: istio.yaml
+
+labels:
+  - pairs:
+      env: app-dev
+    includeSelectors: true
+    includeTemplates: true
