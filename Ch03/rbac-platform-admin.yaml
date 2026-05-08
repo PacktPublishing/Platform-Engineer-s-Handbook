@@ -114,15 +114,11 @@ roleRef:
   kind: ClusterRole
   name: platform-admin
 subjects:
-  # Replace with your actual user/group from identity provider
   - kind: Group
-    name: "platform-engineers@company.example.com"
+  # Keycloak OIDC group — maps via --oidc-groups-claim in the Kubernetes API server.
+    name: "platform-admins"
     apiGroup: rbac.authorization.k8s.io
   
-  # Service account example (uncomment to use)
-  # - kind: ServiceAccount
-  #   name: platform-admin-sa
-  #   namespace: platform-engineering
 
 ---
 # ClusterRole: platform-admin-restricted
@@ -156,8 +152,6 @@ rules:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: platform-admin-sa
-  namespace: platform-engineering
   labels:
     app: platform-engineering
     component: rbac
@@ -167,7 +161,6 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: platform-admin-sa-binding
   labels:
     app: platform-engineering
     component: rbac
@@ -177,8 +170,6 @@ roleRef:
   name: platform-admin
 subjects:
   - kind: ServiceAccount
-    name: platform-admin-sa
-    namespace: platform-engineering
 
 ---
 # ClusterRole: platform-audit-viewer
@@ -265,7 +256,6 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: platform-operator-sa
-  namespace: platform-engineering
   labels:
     app: platform-engineering
     component: rbac
@@ -286,7 +276,6 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: platform-operator-sa
-    namespace: platform-engineering
 
 ################################################################################
 # Platform Admin RBAC Summary

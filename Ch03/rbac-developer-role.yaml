@@ -110,9 +110,8 @@ roleRef:
   kind: Role
   name: developer-role
 subjects:
-  # Replace with actual user/group from your identity provider
   - kind: Group
-    name: "developers@company.example.com"
+    name: "platform-users"
     apiGroup: rbac.authorization.k8s.io
   
   # Service account example (commented, uncomment to use)
@@ -152,9 +151,8 @@ roleRef:
   kind: Role
   name: developer-readonly-role
 subjects:
-  # Replace with actual user/group - stakeholders with viewing access
   - kind: Group
-    name: "stakeholders@company.example.com"
+    name: "platform-readonly"
     apiGroup: rbac.authorization.k8s.io
 
 ---

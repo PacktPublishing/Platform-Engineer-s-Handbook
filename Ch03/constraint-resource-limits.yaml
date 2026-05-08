@@ -1,34 +1,37 @@
-# Chapter 3 - Securing Platform Access
-# OPA Gatekeeper Constraint: Require Resource Limits
+# =============================================================================
+# constraint-resource-limits.yaml — Enforce Resource Limits on Deployments
+# =============================================================================
+# Constraint referencing the ResourceLimits ConstraintTemplate defined in
+# template-resource-limits.yaml. Rejects Deployments whose containers lack
+# CPU or memory limits, or exceed the per-environment maxima.
 #
-# This Constraint enforces that all pods must have CPU and memory
-# limits set on every container. Prevents unbounded resource
-# consumption in shared clusters.
-#
-# Usage:
-#   1. Apply the template first: kubectl apply -f template-resource-limits.yaml
-#   2. Apply this constraint: kubectl apply -f constraint-resource-limits.yaml
+# Apply the template first, then this constraint:
+#   kubectl apply -f template-resource-limits.yaml
+#   kubectl apply -f constraint-resource-limits.yaml
+# =============================================================================
 
 apiVersion: constraints.gatekeeper.sh/v1beta1
-kind: K8sRequireResourceLimits
+kind: ResourceLimits
 metadata:
   name: require-resource-limits
   annotations:
-    description: "All containers must specify CPU and memory limits"
+    description: "All containers must specify CPU and memory limits within allowed maxima"
 spec:
   enforcementAction: deny
   match:
     kinds:
-      - apiGroups: [""]
-        kinds: ["Pod"]
-    # Exclude system namespaces
+      - apiGroups: ["apps"]
+        kinds: ["Deployment"]
+    # Exclude system namespaces that run privileged workloads
     excludedNamespaces:
       - kube-system
       - kube-public
       - kube-node-lease
       - gatekeeper-system
       - flux-system
+      - istio-system
+      - platform-services
       - default
   parameters:
-    exemptImages:
-      - "registry.k8s.io/pause:*"
+    cpu: "2"       # No single container may request more than 2 CPU cores
+    memory: "4Gi"  # No single container may request more than 4GiB memory

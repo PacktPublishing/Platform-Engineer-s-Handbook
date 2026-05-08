@@ -16,14 +16,17 @@
 
 ---
 # Namespace for demo application
+# Required labels enforced by constraint-namespace-labels.yaml
 apiVersion: v1
 kind: Namespace
 metadata:
   name: demo-app
   labels:
     name: demo-app
-    environment: production
-    app: demo-application
+    team: platform
+    environment: prod
+    cost-center: "10001"
+    istio-injection: enabled    # Auto-inject Envoy sidecar for mTLS
 
 ---
 # ServiceAccount for demo app
@@ -274,61 +277,92 @@ spec:
     app: demo-app
 
 ---
-# Ingress: TLS termination and external access
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+# cert-manager Certificate: automatic TLS for demo-app via Let's Encrypt.
+# cert-manager handles the ACME challenge, stores the certificate in a
+# Kubernetes Secret, and renews it 30 days before expiry automatically.
+apiVersion: cert-manager.io/v1
+kind: Certificate
 metadata:
-  name: demo-app-ingress
+  name: demo-app-cert
+  namespace: istio-system    # Must be in istio-system for Istio Gateway to reference it
+  labels:
+    app: demo-app
+spec:
+  secretName: demo-app-tls
+  duration: 2160h     # 90 days
+  renewBefore: 720h   # Renew 30 days before expiry
+  dnsNames:
+    - demo-app.example.com
+    - www.demo-app.example.com
+  issuerRef:
+    name: letsencrypt-production
+    kind: ClusterIssuer
+
+---
+# Istio Gateway: replaces nginx Ingress — receives inbound traffic on port 80/443.
+# Teams annotate this Gateway resource to control routing from the company domain.
+# Defined once by the platform team; dev teams only manage VirtualService entries.
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: demo-app-gateway
+  namespace: istio-system
+  labels:
+    app: demo-app
+spec:
+  selector:
+    istio: ingressgateway    # Routes through the istio-ingress pod deployed in Ch2
+  servers:
+    - port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      tls:
+        mode: SIMPLE
+        credentialName: demo-app-tls    # References the cert-manager Certificate above
+      hosts:
+        - demo-app.example.com
+        - www.demo-app.example.com
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - demo-app.example.com
+        - www.demo-app.example.com
+      tls:
+        httpsRedirect: true    # Redirect all HTTP to HTTPS automatically
+
+---
+# Istio VirtualService: routes traffic entering the Gateway to the demo-app Service.
+# Teams define their own VirtualService pointing at the shared Gateway — this is
+# the only Istio resource a dev team needs to manage for external routing.
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: demo-app
   namespace: demo-app
   labels:
     app: demo-app
-    component: ingress
-  annotations:
-    # cert-manager annotations for automatic TLS
-    cert-manager.io/cluster-issuer: "letsencrypt-production"
-    # nginx ingress controller annotations
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
-    # Security headers
-    nginx.ingress.kubernetes.io/configuration-snippet: |
-      more_set_headers "Strict-Transport-Security: max-age=31536000; includeSubDomains";
-      more_set_headers "X-Frame-Options: DENY";
-      more_set_headers "X-Content-Type-Options: nosniff";
-      more_set_headers "X-XSS-Protection: 1; mode=block";
-      more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
 spec:
-  ingressClassName: nginx
-  
-  # TLS configuration with automatic certificate
-  tls:
-    - hosts:
-        - demo-app.example.com
-        - www.demo-app.example.com
-      secretName: demo-app-tls
-  
-  rules:
-    - host: demo-app.example.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: demo-app
-                port:
-                  number: 80
-    
-    - host: www.demo-app.example.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: demo-app
-                port:
-                  number: 80
+  hosts:
+    - demo-app.example.com
+    - www.demo-app.example.com
+  gateways:
+    - istio-system/demo-app-gateway
+  http:
+    - match:
+        - uri:
+            prefix: "/"
+      route:
+        - destination:
+            host: demo-app.demo-app.svc.cluster.local
+            port:
+              number: 80
+      timeout: 30s
+      retries:
+        attempts: 3
+        perTryTimeout: 10s
 
 ---
 # NetworkPolicy: Restrict traffic to demo-app
@@ -354,7 +388,7 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels:
-              name: ingress-nginx
+              name: istio-system
       ports:
         - protocol: TCP
           port: 8080

@@ -1,0 +1,41 @@
+# =============================================================================
+# clusterrole-image-reader.yaml — ClusterRole for Cross-Namespace Image Access
+# =============================================================================
+# Chapter 3, Step 4: A ClusterRole is needed (instead of a plain Role) when
+# the CI/CD pipeline must pull image metadata from a registry namespace that
+# is not the same as the deployment namespace — for example, reading from a
+# shared internal registry namespace while deploying to staging.
+#
+# Because image streams and image metadata live at the cluster scope, a
+# ClusterRole is required. However the BINDING should still be a RoleBinding
+# (not a ClusterRoleBinding) so that the permission only applies within the
+# target namespace.
+#
+# Usage:
+#   kubectl apply -f clusterrole-image-reader.yaml
+#   # Then bind it with a RoleBinding scoped to the namespace that needs it:
+#   kubectl create rolebinding image-reader-binding \
+#     --clusterrole=image-registry-reader \
+#     --serviceaccount=staging:ci-cd-deployer \
+#     -n staging
+# =============================================================================
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: image-registry-reader
+  labels:
+    app: platform-engineering
+    component: rbac
+rules:
+  # Read-only access to images and image streams (OpenShift / internal registry)
+  - apiGroups: ["image.openshift.io"]
+    resources: ["images", "imagestreams"]
+    verbs: ["get", "list"]
+
+  # For standard Kubernetes clusters with a private registry configured via
+  # imagePullSecrets — read the Secret holding registry credentials
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+    resourceNames: ["registry-credentials"]   # Scope to the specific pull secret

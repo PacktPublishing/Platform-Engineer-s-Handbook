@@ -1,0 +1,46 @@
+# =============================================================================
+# role-minimal-deployer.yaml — Minimal Deployer Role (Chapter 3, Step 2)
+# =============================================================================
+# Defines a namespace-scoped Role for CI/CD pipelines following the principle
+# of least privilege. Grants only what is needed to execute a rolling deploy:
+# read existing workloads, push new image versions, and monitor rollout status.
+#
+# Pair with service-account.yaml (Step 1) and rolebinding.yaml (Step 3).
+#
+# Usage:
+#   kubectl apply -f role-minimal-deployer.yaml
+#   # Verify:
+#   kubectl describe role minimal-deployer -n staging
+# =============================================================================
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: minimal-deployer
+  namespace: staging
+rules:
+  # Read-only access to existing deployments
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch"]
+
+  # Update deployments (rolling image updates) — NOT create or delete
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale", "deployments/status"]
+    verbs: ["update", "patch"]
+
+  # Manage pods for rollout monitoring
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "delete"]
+
+  # View logs for debugging — read-only
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list"]
+
+  # Read ConfigMaps and Secrets (but not write — prevents pipeline from
+  # exfiltrating secrets into build logs)
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets"]
+    verbs: ["get", "list"]

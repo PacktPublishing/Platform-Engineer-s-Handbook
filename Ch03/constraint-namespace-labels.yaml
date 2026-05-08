@@ -1,45 +1,46 @@
-# Chapter 3 - Securing Platform Access
-# OPA Gatekeeper Constraint: Require Namespace Labels
+# =============================================================================
+# constraint-namespace-labels.yaml — Require Labels on Namespaces
+# =============================================================================
+# Constraint referencing the K8sRequiredLabels ConstraintTemplate defined in
+# template-required-labels.yaml. Rejects namespaces missing the required
+# labels for team ownership, cost tracking, and environment classification.
 #
-# This Constraint enforces that all namespaces have required labels
-# for team ownership, cost allocation, and compliance tracking.
-# It references the built-in K8sRequiredLabels ConstraintTemplate.
+# Apply the template first, then this constraint:
+#   kubectl apply -f template-required-labels.yaml
+#   # Wait ~10s for Gatekeeper to generate the K8sRequiredLabels CRD
+#   kubectl apply -f constraint-namespace-labels.yaml
 #
-# Usage:
-#   1. Ensure Gatekeeper is installed with the K8sRequiredLabels template
-#   2. Apply this constraint: kubectl apply -f constraint-namespace-labels.yaml
-#   3. Any namespace without required labels will be rejected
-#
-# Required labels:
-#   - team: identifies the owning team
-#   - cost-center: for FinOps cost allocation
-#   - environment: dev/staging/production classification
+# Excludes Kubernetes system namespaces and platform-owned namespaces.
+# =============================================================================
 
 apiVersion: constraints.gatekeeper.sh/v1beta1
 kind: K8sRequiredLabels
 metadata:
-  name: require-namespace-labels
+  name: namespace-must-have-team
   annotations:
-    description: "Enforces required labels on all namespaces for governance"
+    description: "All team-owned namespaces must declare team, environment, and cost-center labels"
 spec:
   enforcementAction: deny
   match:
     kinds:
       - apiGroups: [""]
         kinds: ["Namespace"]
-    # Exclude system namespaces from this policy
     excludedNamespaces:
       - kube-system
       - kube-public
       - kube-node-lease
       - gatekeeper-system
+      - flux-system
+      - istio-system
+      - platform-services
+      - cert-manager
+      - monitoring
       - default
   parameters:
     labels:
       - key: "team"
-        # Optional: restrict to allowed values
-        # allowedRegex: "^(platform|backend|frontend|data|sre)$"
-      - key: "cost-center"
-        allowedRegex: "^[A-Z]{2}-[0-9]{4}$"
+        allowedRegex: "^[a-z]{2,20}$"
       - key: "environment"
-        allowedRegex: "^(dev|staging|production)$"
+        allowedRegex: "^(dev|staging|prod)$"
+      - key: "cost-center"
+        allowedRegex: "^[0-9]{4,6}$"
