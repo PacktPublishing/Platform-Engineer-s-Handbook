@@ -1,0 +1,76 @@
+# =============================================================================
+# platform_team_values.yaml — Central Configuration for Platform Team Automation
+# =============================================================================
+# This file is the single source of truth for everything the platform-team-admin
+# Pulumi program manages: GitHub repositories and organization membership.
+#
+# Usage:
+#   Edit this file to add repositories or team members, then run:
+#     pulumi up
+#   in the project root to apply changes.
+#
+# Referenced by: pulumi_repo_create.py / __main__.py
+# =============================================================================
+
+# ── GitHub Repositories ────────────────────────────────────────────────────────
+# Each entry creates a GitHub repository in your organization.
+# Supported fields:
+#   name        (required) Repository name — use kebab-case
+#   description (optional) Short description shown on GitHub
+#   visibility  (optional) "private" | "public" | "internal"  [default: private]
+# ------------------------------------------------------------------------------
+github_repositories:
+
+  # Platform team administration — manages membership, access, and artifacts
+  - name: platform-team-admin
+    description: >
+      Repository to manage platform team membership, admin artifacts,
+      and organization-level automation.
+    visibility: private
+
+  # Core platform runtime — Pulumi IaC for cluster, networking, service mesh
+  - name: platform-core
+    description: >
+      Core platform runtime: Kubernetes cluster provisioning, network
+      configuration, and service mesh setup.
+    visibility: private
+
+  # Demo application — used throughout the book to validate platform capabilities
+  - name: platform-demo-apps
+    description: >
+      Demo application for testing and validating platform capabilities.
+      Deployed as part of Chapter 5 user experience evaluation.
+    visibility: private
+
+  # Add new repositories below this line as the platform grows.
+  # Example:
+  # - name: platform-observability
+  #   description: Observability stack — Prometheus, Grafana, OTEL Collector
+  #   visibility: private
+
+
+# ── GitHub Organization Members ───────────────────────────────────────────────
+# Each entry adds (or updates) a member in your GitHub organization.
+# Supported fields:
+#   name          Display name (informational only — not sent to GitHub)
+#   github-role   "admin" | "member"
+#   github-username  The member's GitHub username (must already have a GitHub account)
+#   email         For documentation/audit purposes; not used by the API
+#
+# Note: You cannot automate management of the organization owner account.
+# Create a separate GitHub account to test team member onboarding (see Chapter 1,
+# "Automating Platform Team Onboarding").
+# ------------------------------------------------------------------------------
+github_organization_members:
+
+  - name: Team Member
+    github-role: admin
+    github-username: team_member
+    email: team_member@email.com
+
+  # Add additional team members here as the platform team grows.
+  # Example:
+  # - name: Jane Doe
+  #   github-role: member
+  #   github-username: janedoe
+  #   email: jane.doe@company.com

@@ -44,11 +44,24 @@ This section maps each code file to its corresponding chapter concept and usage:
 | `scripts/bw-helper.sh` | Section 1.6: Secrets Management | Shared Bitwarden helper library with `bw_init`, `bw_get`, `bw_export`, and `bw_cleanup` functions. Sourced by `load-secrets.sh` scripts in Ch3, Ch7, Ch9, Ch10, and Ch14. | Bash Library |
 | `.git-hooks/commit-msg` | Section 1.5: Commit Message Standards | Git hook enforcing conventional commits format (feat, fix, docs, etc.) for semantic versioning and changelog automation | Git Hook |
 
-### Secrets & Support Files
+### GitHub Repository & Team Automation
 
 | File | Chapter Concept | Purpose | Type |
 |------|-----------------|---------|------|
-| `secrets-setup/github_secrets.json` | Section 1.6: Secrets Storage Structure | Bitwarden item template for storing GitHub secrets and authentication tokens | JSON Template |
+| `pulumi_repo_create.py` | Section 1.4: Automating Repository Creation | Pulumi program that creates GitHub repositories and manages organization membership using config/platform_team_values.yaml as its source of truth | Python / Pulumi |
+| `config/platform_team_values.yaml` | Section 1.4: Repository & Team Configuration | Central configuration file defining all GitHub repositories and organization members managed by the Pulumi automation. Edit this file and run `pulumi up` to apply changes. | YAML Config |
+
+### Secrets Setup
+
+| File | Chapter Concept | Purpose | Type |
+|------|-----------------|---------|------|
+| `secrets-setup/inject_secrets.sh` | Section 1.3: Managing Secrets | Loops through all `*.json` files in `secrets-setup/` and creates or updates matching items in your Bitwarden vault. Run once during initial setup. | Bash Script |
+| `secrets-setup/github_secrets.json` | Section 1.3: Secrets Storage Structure | Bitwarden item template for storing the GitHub Personal Access Token needed by the Pulumi GitHub provider | JSON Template |
+
+### Support Files
+
+| File | Chapter Concept | Purpose | Type |
+|------|-----------------|---------|------|
 | `assessment_results.json` | Section 1.2: Assessment Output | Sample output from the platform maturity assessment tool showing dimension scores | Sample Output |
 
 ---
@@ -104,6 +117,25 @@ pip install pyyaml pytest
    - `BW_CLIENTID`: Bitwarden API Client ID
    - `BW_CLIENTSECRET`: Bitwarden API Client Secret
    - `BW_PASSWORD`: Bitwarden Master Password
+
+3. Upload your book secrets to Bitwarden (run once):
+   ```bash
+   cd secrets-setup
+   chmod +x inject_secrets.sh
+   ./inject_secrets.sh
+   ```
+
+4. Set Pulumi config values for the GitHub provider:
+   ```bash
+   pulumi config set github:token  ghp_your_token_here --secret
+   pulumi config set github:owner  your-github-org
+   ```
+
+5. Edit `config/platform_team_values.yaml` to define your repositories and team members, then apply:
+   ```bash
+   pulumi preview    # dry-run first
+   pulumi up         # apply
+   ```
 
 ---
 
