@@ -39,8 +39,8 @@ class TestBackstageConfig(unittest.TestCase):
 class TestPortalScripts(unittest.TestCase):
     """Validate portal-related scripts."""
 
-    def test_evaluation_framework_valid(self):
-        path = os.path.join(os.path.dirname(__file__), "portal-evaluation-framework.py")
+    def test_plugin_scaffolder_valid(self):
+        path = os.path.join(os.path.dirname(__file__), "create-backstage-plugin.py")
         with open(path) as f:
             compile(f.read(), path, "exec")
 
