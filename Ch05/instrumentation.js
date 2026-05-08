@@ -55,7 +55,7 @@ const sdk = new NodeSDK({
 });
 
 sdk.start();
-console.log(`OpenTelemetry initialized for ${serviceName} → ${otlpEndpoint}`);
+console.log(`OpenTelemetry initialized for ${serviceName} → ${traceEndpoint}`);
 
 process.on('SIGTERM', () => {
   sdk.shutdown().then(() => process.exit(0)).catch(() => process.exit(1));
